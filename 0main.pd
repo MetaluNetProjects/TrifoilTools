@@ -1,0 +1,17 @@
+#N canvas 42 176 672 420 12;
+#X declare -path Fraise8;
+#X obj 45 17 declare -path Fraise8;
+#X obj 46 59 pied/pied 1;
+#X obj 53 169 barrette/0barrette;
+#X obj 213 84 fruit/fruit 1 programer 0 programer_fw;
+#X obj 58 235 testboard/0testboard;
+#X obj 288 159 hsl 170 20 1 100 1 0 empty empty empty -2 -10 0 12 #fcfcfc #000000 #000000 0 1;
+#X msg 285 184 1 \$1;
+#X msg 476 155 EHello;
+#X obj 476 115 print;
+#X obj 285 209 fruit/send programer;
+#X obj 476 90 fruit/receive programer;
+#X connect 5 0 6 0;
+#X connect 6 0 9 0;
+#X connect 7 0 9 1;
+#X connect 10 0 8 0;

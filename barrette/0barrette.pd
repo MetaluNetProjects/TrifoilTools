@@ -1,0 +1,2 @@
+#N canvas 743 346 450 300 12;
+#X obj 40 70 fruit/fruit 1 barrette1 10 barrette_fw 1;
