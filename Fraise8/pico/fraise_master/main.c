@@ -55,7 +55,7 @@ void reboot() {
 }
 
 void processSysLine() {
-    static bool unlocked = false;
+    //static bool unlocked = false;
     switch(lineBuf[1]) {
     case 'R':
         printf("sID%02X\n", piedID);
@@ -67,7 +67,7 @@ void processSysLine() {
     case 'E':
         puts((const char*)(lineBuf + 2));
         break;
-    case 'U':
+    /*case 'U':
         if(!strncmp(lineBuf, "#UNLOCK", 7)) unlocked = true;
         return;
     case 'W':
@@ -76,7 +76,7 @@ void processSysLine() {
             eeprom_set_id(piedID);
             eeprom_commit();
         }
-        break;
+        break;*/
     case 'S':
         fraise_master_set_poll(gethexbyte(lineBuf + 2), true);
         break;
@@ -93,7 +93,7 @@ void processSysLine() {
         fraise_bootloader_use_pico(lineBuf[2] != '0');
         break;*/
     }
-    unlocked = false;
+    //unlocked = false;
 }
 
 void processBroadcast() {

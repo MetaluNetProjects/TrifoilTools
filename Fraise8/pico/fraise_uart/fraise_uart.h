@@ -14,6 +14,7 @@ void fraise_uart_putc (char c);
 bool fraise_uart_is_readable();
 bool fraise_uart_is_writable();
 void fraise_uart_tx_wait_blocking();
+bool fraise_uart_tx_in_progress();
 void fraise_uart_set_drive(bool drive);
 
 #ifdef __cplusplus
