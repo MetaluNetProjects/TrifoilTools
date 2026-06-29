@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 metalu.net
+ * Copyright (c) 2026 metalu.net
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -11,31 +11,54 @@
 //#include "fraise.h"
 #include "fraise_uart.h"
 
-class FraiseUart {
+#define FRAISE_ID_MAX 127
+
+class FraiseCom {
 public:
-    virtual char getc(); 
-    virtual void putc (char c);
-    virtual bool is_readable();
-    virtual bool is_writable();
-    virtual void tx_wait_blocking();
-    virtual bool tx_in_progress();
-    virtual void set_drive(bool drive);
+    virtual bool is_readable() = 0;
+    virtual char getc() = 0; 
+    virtual bool is_writable() = 0;
+    virtual void putc(char c) = 0;
+    virtual bool tx_in_progress() = 0;
+    virtual void set_drive(bool drive) = 0;
+    virtual void send(const char *data, uint8_t len) = 0; // set drive, send bytes, and clear drive
+    virtual void set_irq_handler(irq_handler_t handler) = 0;
+    virtual void set_irqs_enabled (bool rx_has_data, bool tx_needs_data) = 0;
 };
 
-class FraiseBusInternal {
-protected:
-    void send_raw(const char *data, uint8_t len); // 7bit data only; will append '\n'
-    FraiseUart *uart = nullptr;
-    int id = -1;
-}
-
-class FraiseBus : public FraiseBusInternal {
+class FraiseUart : public FraiseCom {
 public:
-    FraiseBus(FraiseUart *uart = nullptr, int id = -1);
+    FraiseUart(uart_inst_t *uart, int txpin, int rxpin, int drvpin, bool drvlevel);
+    virtual bool is_readable() override;
+    virtual char getc() override; 
+    virtual bool is_writable() override;
+    virtual void putc(char c) override;
+    virtual bool tx_in_progress() override;
+    virtual void set_drive(bool drive) override;
+    virtual void send(const char *data, uint8_t len) override; // set drive, send bytes, and clear drive
+    virtual void set_irq_handler(irq_handler_t handler) override;
+    virtual void set_irqs_enabled (bool rx_has_data, bool tx_needs_data) override;
+private:
+    uart_inst_t *uart;
+    int drive_pin;
+    bool drive_level;
+    char buffer[256]{0};
+    int buffer_length = 0;
+    int buffer_sent = 0;
+    bool send_in_progress = false;
+};
+
+class FraiseBus {
+private:
+    FraiseCom *com = nullptr;
+    int id = -1;
+public:
+    FraiseBus(FraiseCom *com = nullptr, int id = -1);
     bool process_command(char *data); // e.g from stdin; data = null-terminated string
-    void send_to(int dest_id, const char *data, int len); // start with 8bit address
+    void send_to(int dest_id, const char *data, int len); // start with 8-bit address if (dest_id >= 0)
     void poll(int poll_id);
     bool queue_for_polling(const char *data, int len);
+    void service();
     virtual void received_from(int src_id, const char *data, int len);
     virtual void received(const char *data, int len);
 };

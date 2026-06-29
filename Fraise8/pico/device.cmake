@@ -16,6 +16,7 @@ target_compile_definitions(${projName} PUBLIC FRAISE_RX_PIN=${FRAISE_RX_PIN})
 target_compile_definitions(${projName} PUBLIC FRAISE_TX_PIN=${FRAISE_TX_PIN})
 target_compile_definitions(${projName} PUBLIC FRAISE_DRV_PIN=${FRAISE_DRV_PIN})
 target_compile_definitions(${projName} PUBLIC FRAISE_DRV_LEVEL=${FRAISE_DRV_LEVEL})
+target_compile_definitions(${projName} PUBLIC FRAISE_UART_NUM=${FRAISE_UART_NUM})
 target_compile_definitions(${projName} PUBLIC FRAISE_ID=${FRAISE_ID})
 
 # add pico modules

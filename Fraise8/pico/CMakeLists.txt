@@ -1,4 +1,5 @@
 add_subdirectory(fraise)
+add_subdirectory(fraise_bus)
 add_subdirectory(fraise_uart)
 add_subdirectory(fraise_eeprom)
 add_subdirectory(fraise_device)
