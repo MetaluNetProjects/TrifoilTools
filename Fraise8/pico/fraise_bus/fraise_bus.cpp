@@ -56,14 +56,24 @@ void FraiseUart::send(const char *data, uint8_t len) {
     set_drive(false);
 }
 
-void FraiseUart::set_irq_handler(irq_handler_t handler) {}
-void FraiseUart::set_irqs_enabled (bool rx_has_data, bool tx_needs_data) {}
+//void FraiseUart::set_irq_handler(irq_handler_t handler) {}
+//void FraiseUart::set_irqs_enabled (bool rx_has_data, bool tx_needs_data) {}
 
 // --------------------------------------------------------------------------- //
+
+void FraiseReceiver::sent_to(int dest_id, const char *data, int len) {}
+void FraiseReceiver::received_from(int src_id, const char *data, int len) {}
+void FraiseReceiver::received(const char *data, int len) {
+    fraise_receivechars(data, len);
+}
+
+// --------------------------------------------------------------------------- //
+FraiseReceiver default_receiver;
 
 FraiseBus::FraiseBus(FraiseCom *com, int id):
     com(com), id(id)
 {
+    set_receiver(&default_receiver);
 }
 
 #define ishex(x) ((x >= '0'&& x <='9') || (x >= 'A' && x <= 'F'))
@@ -83,7 +93,7 @@ bool FraiseBus::process_command(char *data) {
         switch(data[1]) {
         case 'R':
             printf("sID%02X\n", id);
-            //fraise_master_bootload_stop();
+            state = State::receive;
             break;
         case 'E':
             puts((const char*)(data + 2));
@@ -100,7 +110,7 @@ bool FraiseBus::process_command(char *data) {
             //fraise_master_reset_polls();
             break;
         case 'F':
-            //fraise_master_bootload_stop();
+            state = State::receive;
             break;
         }
         return true;
@@ -121,17 +131,19 @@ bool FraiseBus::process_command(char *data) {
         break;
         case 'B':
             fraise_master_sendchars_broadcast(data + 2);
-            break;
-        case 'F':
-            fraise_master_bootload_start(data + 2);
             break;*/
+        case 'F':
+            send_to(0, data + 1, 3);
+            state = State::bootload;
+            break;
         }
         return true;
     }
     else if(ishex(data[0]) && ishex(data[1])) { // normal output to fruit
         uint8_t dest_id = gethexbyte(data) - 128;
         if(dest_id == 0) {
-            fraise_receivechars(data + 2, len - 2);
+            //fraise_receivechars(data + 2, len - 2);
+            receiver->received(data + 2, len - 2);
         } else if(dest_id < FRAISE_ID_MAX) {
             send_to(dest_id, data + 2, len - 2);
         }
@@ -161,20 +173,90 @@ void FraiseBus::send_to(int dest_id, const char *data, int len) {
     com->send(buffer, buflen);
 }
 
-void FraiseBus::poll(int poll_id) {
-    if(poll_id > FRAISE_ID_MAX || poll_id <= 0) return;
+void FraiseBus::poll(int id) {
+    poll_id = id;
+    if(poll_id > FRAISE_ID_MAX || poll_id <= 0) {
+        poll_id = 0;
+        return;
+    }
     char buffer[2] = {(char)(poll_id + 128), 0};
     com->send(buffer, 2);
+    state = State::poll;
 }
 
-bool FraiseBus::queue_for_polling(const char *data, int len) {
+bool FraiseBus::queue_message(const char *data, int len) {
     return true;
 }
 
-void FraiseBus::service() {
+void FraiseBus::send_message() {
 }
 
-void FraiseBus::received_from(int src_id, const char *data, int len) {}
-void FraiseBus::received(const char *data, int len) {}
+static bool check_sum(char *data, int len) {
+    int sum = 0;
+    for(int i = 0; i < len; i++) sum += data[i];
+    if((sum & 127) != 0) {
+        printf("e bad sum %d\n", sum);
+        return false;
+    }
+    return true;
+}
 
+void FraiseBus::check_received() {
+    if(!check_sum(rcv_buffer, rcv_len)) return;
+    int dest_id = rcv_buffer[0];
+    int len = rcv_buffer[1];
+    rcv_buffer[rcv_len - 1] = 0; // clear checksum to have null-terminated string
+    receiver->sent_to(dest_id, rcv_buffer + 2, len);
+    if(dest_id == id) receiver->received(rcv_buffer + 2, len);
+}
+
+void FraiseBus::check_poll_received() {
+    if(!check_sum(rcv_buffer, rcv_len)) return;
+    int len = rcv_buffer[0];
+    rcv_buffer[rcv_len - 1] = 0; // clear checksum to have null-terminated string
+    receiver->received_from(poll_id, rcv_buffer + 1, len);
+}
+
+void FraiseBus::service() {
+    while(com->is_readable()) {
+        char c = com->getc();
+        switch(state) {
+            case State::poll: {
+                if(rcv_len < 130) rcv_buffer[rcv_len++] = c;
+                if(rcv_len == 2 && c == 0) { // empty answer
+                    state = State::receive;
+                    break;
+                }
+                if(rcv_len > 2 && rcv_len == rcv_buffer[0]) {
+                    check_poll_received();
+                }
+            }
+            break;
+            case State::receive: {
+                if(c >= 128) {
+                    rcv_len = 0;
+                    rcv_buffer[rcv_len++] = c - 128;
+                } else if(rcv_len > 0 && rcv_len < 131) {
+                    if(rcv_len == 1 && c == 0 && rcv_buffer[0] == id) send_message();
+                    else {
+                        rcv_buffer[rcv_len++] = c;
+                        if(rcv_len > 3 && rcv_len == rcv_buffer[1]) {
+                            check_received();
+                            rcv_len = 0;
+                        }
+                    }
+                }
+            }
+            break;
+            case State::bootload:
+                printf("b%c\n", c);
+            break;
+            default: ;
+        }
+    }
+}
+
+void FraiseBus::set_receiver(FraiseReceiver *r) {
+    receiver = r;
+}
 

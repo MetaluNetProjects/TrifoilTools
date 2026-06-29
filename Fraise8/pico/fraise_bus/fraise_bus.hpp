@@ -8,8 +8,6 @@
 
 #include "pico/stdlib.h"
 #include <stdio.h>
-//#include "fraise.h"
-#include "fraise_uart.h"
 
 #define FRAISE_ID_MAX 127
 
@@ -22,8 +20,8 @@ public:
     virtual bool tx_in_progress() = 0;
     virtual void set_drive(bool drive) = 0;
     virtual void send(const char *data, uint8_t len) = 0; // set drive, send bytes, and clear drive
-    virtual void set_irq_handler(irq_handler_t handler) = 0;
-    virtual void set_irqs_enabled (bool rx_has_data, bool tx_needs_data) = 0;
+    //virtual void set_irq_handler(irq_handler_t handler) = 0;
+    //virtual void set_irqs_enabled (bool rx_has_data, bool tx_needs_data) = 0;
 };
 
 class FraiseUart : public FraiseCom {
@@ -36,8 +34,8 @@ public:
     virtual bool tx_in_progress() override;
     virtual void set_drive(bool drive) override;
     virtual void send(const char *data, uint8_t len) override; // set drive, send bytes, and clear drive
-    virtual void set_irq_handler(irq_handler_t handler) override;
-    virtual void set_irqs_enabled (bool rx_has_data, bool tx_needs_data) override;
+    //virtual void set_irq_handler(irq_handler_t handler) override;
+    //virtual void set_irqs_enabled (bool rx_has_data, bool tx_needs_data) override;
 private:
     uart_inst_t *uart;
     int drive_pin;
@@ -48,18 +46,32 @@ private:
     bool send_in_progress = false;
 };
 
+struct FraiseReceiver {
+    virtual void sent_to(int dest_id, const char *data, int len);
+    virtual void received_from(int src_id, const char *data, int len);
+    virtual void received(const char *data, int len);
+};
+
 class FraiseBus {
 private:
     FraiseCom *com = nullptr;
     int id = -1;
+    FraiseReceiver *receiver = nullptr;
+    enum class State {poll, receive, send, bootload} state = State::receive;
+    char rcv_buffer[256]{0};
+    int rcv_len = -1;
+    int poll_id = 0;
+    void send_message();
+    void check_received();
+    void check_poll_received();
+
 public:
     FraiseBus(FraiseCom *com = nullptr, int id = -1);
     bool process_command(char *data); // e.g from stdin; data = null-terminated string
     void send_to(int dest_id, const char *data, int len); // start with 8-bit address if (dest_id >= 0)
     void poll(int poll_id);
-    bool queue_for_polling(const char *data, int len);
+    bool queue_message(const char *data, int len);
     void service();
-    virtual void received_from(int src_id, const char *data, int len);
-    virtual void received(const char *data, int len);
+    void set_receiver(FraiseReceiver *r);
 };
 
