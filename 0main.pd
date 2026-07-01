@@ -1,4 +1,4 @@
-#N canvas 42 43 672 420 12;
+#N canvas 42 43 672 421 12;
 #X declare -path Fraise8;
 #X obj 45 17 declare -path Fraise8;
 #X obj 46 59 pied/pied 1;
@@ -11,7 +11,16 @@
 #X obj 285 209 fruit/send programer;
 #X obj 476 90 fruit/receive programer;
 #X obj 476 115 print from_programer;
+#X msg 498 220 63;
+#X listbox 498 270 20 0 0 0 - - - 0;
+#X obj 498 245 makefilename %02X;
+#X msg 498 294 P\$1;
+#X text 498 193 poll;
 #X connect 5 0 6 0;
 #X connect 6 0 8 0;
 #X connect 7 0 8 1;
 #X connect 9 0 10 0;
+#X connect 11 0 13 0;
+#X connect 12 0 14 0;
+#X connect 13 0 12 0;
+#X connect 14 0 8 1;

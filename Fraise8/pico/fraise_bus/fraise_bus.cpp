@@ -7,16 +7,56 @@
 #include "pico/stdlib.h"
 #include <stdio.h>
 #define FRAISE_DONT_OVERWRITE_PRINTF
-#include "fraise.h"
+#include "fraise.hpp"
 #include "fraise_bus.hpp"
 #include <hardware/uart.h>
 #include <cstring>
 
 #define FRAISE_UART_BAUDRATE 250000
 
-FraiseUart::FraiseUart(uart_inst_t *uart, int txpin, int rxpin, int drvpin, bool drvlevel):
-    uart(uart), drive_pin(drvpin), drive_level(drvlevel)
+FraiseUart::FraiseUart(int txpin, int rxpin, int drvpin, bool drvlevel):
+    drive_pin(drvpin), drive_level(drvlevel)
 {
+    switch(txpin) {
+/*    case 0:
+    case 12:
+    case 16:
+    case 28:
+#if !PICO_RP2040
+    case 2:
+    case 14:
+    case 18:
+    case 30:
+    case 32:
+    case 34:
+    case 44:
+    case 46:
+#endif
+        uart = uart0;
+        break;
+*/
+
+    case 4:
+    case 8:
+    case 20:
+    case 24:
+#if !PICO_RP2040
+    case 6:
+    case 10:
+    case 22:
+    case 26:
+    case 36:
+    case 38:
+    case 40:
+    case 42:
+#endif
+        uart = uart1;
+        break;
+
+    default:
+        uart = uart0;
+    }
+
     uart_init(uart, FRAISE_UART_BAUDRATE);
     gpio_set_function(txpin, UART_FUNCSEL_NUM(uart, UART_TX_PIN));
     gpio_set_function(rxpin, UART_FUNCSEL_NUM(uart, UART_RX_PIN));
@@ -77,15 +117,6 @@ FraiseBus::FraiseBus(FraiseCom *com, int id):
 }
 
 #define ishex(x) ((x >= '0'&& x <='9') || (x >= 'A' && x <= 'F'))
-static uint8_t gethexbyte(const char *buf)
-{
-    uint8_t cl, ch;
-    ch = buf[0] - '0';
-    if(ch > 9) ch += '9' - 'A' + 1;
-    cl = buf[1] - '0';
-    if(cl > 9) cl += '9' - 'A' + 1;
-    return (ch << 4) + cl;
-}
 
 bool FraiseBus::process_command(char *data) {
     int len = strlen(data);
@@ -181,6 +212,7 @@ void FraiseBus::poll(int id) {
     }
     char buffer[2] = {(char)(poll_id + 128), 0};
     com->send(buffer, 2);
+    rcv_len = 0;
     state = State::poll;
 }
 
@@ -189,13 +221,17 @@ bool FraiseBus::queue_message(const char *data, int len) {
 }
 
 void FraiseBus::send_message() {
+    char buffer[]="I'm here";
+    send_to(-1, buffer, sizeof(buffer));
 }
 
 static bool check_sum(char *data, int len) {
     int sum = 0;
     for(int i = 0; i < len; i++) sum += data[i];
     if((sum & 127) != 0) {
-        printf("e bad sum %d\n", sum);
+        printf("e bad sum %d: ", sum);
+        for(int i = 0; i < len; i++) printf("%d ", data[i]);
+        printf("\n");
         return false;
     }
     return true;
@@ -223,12 +259,18 @@ void FraiseBus::service() {
         switch(state) {
             case State::poll: {
                 if(rcv_len < 130) rcv_buffer[rcv_len++] = c;
+                else {
+                    state = State::receive;
+                    break;
+                }
                 if(rcv_len == 2 && c == 0) { // empty answer
                     state = State::receive;
                     break;
                 }
-                if(rcv_len > 2 && rcv_len == rcv_buffer[0]) {
+                if(rcv_len > 2 && rcv_len == rcv_buffer[0] + 2) {
                     check_poll_received();
+                    state = State::receive;
+                    break;
                 }
             }
             break;
@@ -240,7 +282,7 @@ void FraiseBus::service() {
                     if(rcv_len == 1 && c == 0 && rcv_buffer[0] == id) send_message();
                     else {
                         rcv_buffer[rcv_len++] = c;
-                        if(rcv_len > 3 && rcv_len == rcv_buffer[1]) {
+                        if(rcv_len > 3 && rcv_len == rcv_buffer[1] + 3) {
                             check_received();
                             rcv_len = 0;
                         }

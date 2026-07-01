@@ -6,7 +6,17 @@
 
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
-#include "fraise.h"
+#include "fraise.hpp"
+
+uint8_t gethexbyte(const char *buf)
+{
+    uint8_t cl, ch;
+    ch = buf[0] - '0';
+    if(ch > 9) ch += '9' - 'A' + 1;
+    cl = buf[1] - '0';
+    if(cl > 9) cl += '9' - 'A' + 1;
+    return (ch << 4) + cl;
+}
 
 /* -------------------------------------------------*/
 /* ------- Message receive "get" functions ---------*/
@@ -165,16 +175,16 @@ bool claim_pio_sm_irq(const pio_program_t *program, PIO *pio_hw, uint *sm, uint 
     }
 
     if(irq != NULL) {
-		// Find a free irq
-		static_assert(PIO0_IRQ_1 == PIO0_IRQ_0 + 1 && PIO1_IRQ_1 == PIO1_IRQ_0 + 1, "");
-		uint pio_irq = (*pio_hw == pio0) ? PIO0_IRQ_0 : PIO1_IRQ_0;
-		if (irq_get_exclusive_handler(pio_irq)) {
-		    pio_irq++;
-		    if (irq_get_exclusive_handler(pio_irq)) {
-		        return false;
-		    }
-		}
-		*irq = pio_irq;
+        // Find a free irq
+        static_assert(PIO0_IRQ_1 == PIO0_IRQ_0 + 1 && PIO1_IRQ_1 == PIO1_IRQ_0 + 1, "");
+        uint pio_irq = (*pio_hw == pio0) ? PIO0_IRQ_0 : PIO1_IRQ_0;
+        if (irq_get_exclusive_handler(pio_irq)) {
+            pio_irq++;
+            if (irq_get_exclusive_handler(pio_irq)) {
+                return false;
+            }
+        }
+        *irq = pio_irq;
     }
 
     return true;

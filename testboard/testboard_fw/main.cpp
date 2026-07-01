@@ -29,14 +29,12 @@ void loop(){
 }*/
 
 void fraise_receivechars(const char *data, uint8_t len){
-    char command = data[0];
-    switch(command) {
-    case 'E':
+    if(data[0] == 'E') { // Echo
         fraise_printf("E%s\n", data + 1);
-        break;
-    case 'P':
-        fraise_main_bus()->poll(gethexbyte(data + 1));
-        break;
+    } else {
+        printf("l rcvd ");
+        for(int i = 0; i < len; i++) printf("%d ", data[i]);
+        printf("\n");
     }
 }
 

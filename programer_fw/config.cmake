@@ -1,4 +1,4 @@
-target_link_libraries(${CMAKE_PROJECT_NAME} fraise_uart_native)
+#target_link_libraries(${CMAKE_PROJECT_NAME} fraise_uart_native)
 
 set(USB_DEBUG true)
 if(${USB_DEBUG})

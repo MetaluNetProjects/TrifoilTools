@@ -13,7 +13,7 @@
 #include "hardware/structs/watchdog.h"
 #include "fraise_eeprom.h"
 //#include "fraise_master.h"
-#include "fraise.h"
+#include "fraise.hpp"
 #include "fraise_bus.hpp"
 #include "pico/multicore.h"
 
@@ -24,9 +24,13 @@
 #endif
 
 FraiseBus bus(
-    new FraiseUart(UART_INSTANCE(FRAISE_UART_NUM), FRAISE_TX_PIN, FRAISE_RX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL), 
+    new FraiseUart(FRAISE_TX_PIN, FRAISE_RX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL), 
     FRAISE_ID
 );
+
+FraiseBus *fraise_main_bus() {
+    return &bus;
+}
 
 char lineBuf[1024];
 uint8_t lineLen;
@@ -100,6 +104,15 @@ void stdioTask()
     }
 }
 
+struct FraiseReceiverMaster: public FraiseReceiver {
+    //virtual void sent_to(int dest_id, const char *data, int len);
+    virtual void received_from(int src_id, const char *data, int len) override {
+        printf("%02X%s\n", src_id + 128, data);
+    }
+    //virtual void received(const char *data, int len);
+} receiver;
+
+
 int main() {
     stdio_init_all();
 #ifdef PICO_DEFAULT_LED_PIN
@@ -107,6 +120,7 @@ int main() {
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 #endif
     eeprom_setup();
+    bus.set_receiver(&receiver);
     setup();
     while(true) {
         stdioTask();
@@ -117,6 +131,7 @@ int main() {
 
 __attribute__((weak)) void setup() {}
 __attribute__((weak)) void loop() {}
+
 #define STRINGIFY(x) #x
 #ifdef FRAISE_MASTER_DEBUG
 #define dummy_callback(f) __attribute__((weak)) void f(const char *data, uint8_t len){ printf("dummy " STRINGIFY(f) "()\n");}

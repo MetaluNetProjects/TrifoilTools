@@ -5,5 +5,4 @@ set(FRAISE_RX_PIN 5)
 set(FRAISE_DRV_PIN 6)
 set(FRAISE_DRV_LEVEL 1) # DRV is straight (drive when drv_pin is high)
 set(FRAISE_ID 1)
-set(FRAISE_UART_NUM 1)
 

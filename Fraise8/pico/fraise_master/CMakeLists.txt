@@ -1,7 +1,7 @@
 add_library(fraise_master INTERFACE)
 
 target_sources(fraise_master INTERFACE 
-    main.cpp
+    fraise_master.cpp
 )
 
 target_include_directories(fraise_master INTERFACE
@@ -18,8 +18,8 @@ target_link_libraries(fraise_master INTERFACE
     pico_async_context_poll
     cmsis_core
     fraise_eeprom
-    fraise_bus
     fraise
+    fraise_bus
 )
 
 # set_target_properties(fraise_device PROPERTIES INTERFACE_COMPILE_OPTIONS "-DFRAISE_MASTER_DEBUG")

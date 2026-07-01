@@ -1,7 +1,7 @@
-add_library(fraise INTERFACE fraise.c)
+add_library(fraise INTERFACE)
 
 target_sources(fraise INTERFACE 
-	${CMAKE_CURRENT_LIST_DIR}/fraise.c
+	${CMAKE_CURRENT_LIST_DIR}/fraise.cpp
 )
 
 target_include_directories(fraise INTERFACE

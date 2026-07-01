@@ -26,7 +26,7 @@ public:
 
 class FraiseUart : public FraiseCom {
 public:
-    FraiseUart(uart_inst_t *uart, int txpin, int rxpin, int drvpin, bool drvlevel);
+    FraiseUart(int txpin, int rxpin, int drvpin, bool drvlevel);
     virtual bool is_readable() override;
     virtual char getc() override; 
     virtual bool is_writable() override;
@@ -37,7 +37,7 @@ public:
     //virtual void set_irq_handler(irq_handler_t handler) override;
     //virtual void set_irqs_enabled (bool rx_has_data, bool tx_needs_data) override;
 private:
-    uart_inst_t *uart;
+    uart_inst_t *uart = uart0;
     int drive_pin;
     bool drive_level;
     char buffer[256]{0};
@@ -75,3 +75,4 @@ public:
     void set_receiver(FraiseReceiver *r);
 };
 
+FraiseBus *fraise_main_bus();

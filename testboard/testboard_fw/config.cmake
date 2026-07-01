@@ -1,5 +1,3 @@
-#target_link_libraries(${CMAKE_PROJECT_NAME} hardware_adc)
-
 set(USB_DEBUG true)
 if(${USB_DEBUG})
     pico_enable_stdio_usb(${CMAKE_PROJECT_NAME} 1)

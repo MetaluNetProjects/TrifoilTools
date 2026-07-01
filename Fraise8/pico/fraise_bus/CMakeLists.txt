@@ -13,5 +13,6 @@ target_link_libraries(fraise_bus INTERFACE
 	pico_stdlib
 	#pico_sync
 	hardware_uart
+	fraise
 )
 

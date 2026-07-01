@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _FRAISE_H
-#define _FRAISE_H
+#pragma once
+
 
 #include "pico/stdlib.h"
 #include <stdio.h>
-#include "hardware/pio.h"
 
 /** \file fraise.h
  *  \defgroup fraise fraise
@@ -19,9 +18,9 @@
  */
 ///@{
 
-#ifdef __cplusplus
+/*#ifdef __cplusplus
 extern "C" {
-#endif
+#endif*/
 
 /** -----------------------------------------------------------------
  * \name Sending raw bytes messages
@@ -118,6 +117,8 @@ void fraise_receivebytes_broadcast(const char *data, uint8_t len); // Called whe
  */
 void fraise_receivechars_broadcast(const char *data, uint8_t len); // Called when a text broadcast message has been received
 
+uint8_t gethexbyte(const char *buf);
+
 /** -----------------------------------------------------------------
  * \name Bytes receive decoding utils:
  * \note These functions are only valid when called from fraise_receivebytes() or fraise_receivebytes_broadcast().
@@ -181,25 +182,26 @@ void fraise_get_pins(int *rxpin, int *txpin, int *drvpin, int *drvlevel);
  * \param irq if not null, the address where to store the index of the chosen irq
  * \return false if this fails.
  */
-bool claim_pio_sm_irq(const pio_program_t *program, PIO *pio_hw, uint *sm, uint *program_offset, uint *irq);
+/*bool claim_pio_sm_irq(const pio_program_t *program, PIO *pio_hw, uint *sm, uint *program_offset, uint *irq);
 
 #ifndef PIO_NUM
 #define PIO_NUM(pio) ((int)(((uintptr_t)(pio) - PIO0_BASE) >> 20))
 #endif
 
-void fraise_print_status();
+void fraise_print_status();*/
 
 ///@}
-
+/*
 #ifndef FRAISE_DONT_OVERWRITE_PRINTF
 #define printf fraise_printf
 #define putchar fraise_putchar
 #endif
+*/
 
-#ifdef __cplusplus
+/*#ifdef __cplusplus
 }
-#endif
+#endif*/
 
 ///@}
 
-#endif // _FRAISE_H
+//#endif // _FRAISE_H
