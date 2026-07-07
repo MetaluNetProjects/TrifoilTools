@@ -16,6 +16,9 @@
 #X obj 498 245 makefilename %02X;
 #X msg 498 294 P\$1;
 #X text 498 193 poll;
+#X obj 560 168 loadbang;
+#X obj 560 193 tgl 20 0 empty empty empty 0 -10 0 12 #fcfcfc #000000 #000000 0 1;
+#X obj 560 218 metro 100;
 #X connect 5 0 6 0;
 #X connect 6 0 8 0;
 #X connect 7 0 8 1;
@@ -24,3 +27,5 @@
 #X connect 12 0 14 0;
 #X connect 13 0 12 0;
 #X connect 14 0 8 1;
+#X connect 16 0 17 0;
+#X connect 17 0 18 0;

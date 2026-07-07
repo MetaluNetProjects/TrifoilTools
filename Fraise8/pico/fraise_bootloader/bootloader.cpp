@@ -24,8 +24,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "fraise_bootdevice.h"
-#include "bootloader.h"
+//#include "fraise_bootdevice.h"
+#include "bootloader.hpp"
+#include "fraise.hpp"
 
 #ifdef FRAISE_BLD_DEBUG
 
@@ -77,7 +78,7 @@ void run_app()
     watchdog_hw->scratch[6] = ('p' << 24) + ('i' << 16) + ('n' << 8) + 's';
     watchdog_hw->scratch[7] = (FRAISE_DRV_LEVEL << 15) + (FRAISE_RX_PIN << 10) + (FRAISE_TX_PIN << 5) + FRAISE_DRV_PIN;
 
-    fraise_unsetup();
+    //fraise_unsetup();
     fraise_disable_interrupts();
     reset_peripherals();
     const uint32_t vtor = FLASH_ADDR_MIN;
@@ -96,7 +97,7 @@ void run_app()
     while(1);
 }
 
-uint8_t gethexbyte(const char *buf)
+/*uint8_t gethexbyte(const char *buf)
 {
     uint8_t cl, ch;
     ch = buf[0] - '0';
@@ -104,7 +105,7 @@ uint8_t gethexbyte(const char *buf)
     cl = buf[1] - '0';
     if(cl > 9) cl += '9' - 'A' + 1;
     return (ch << 4) + cl;
-}
+}*/
 
 static void programCurrentPage() {
     uint32_t addr = lastAddress & ~(FLASH_PAGE_SIZE - 1);
@@ -150,7 +151,7 @@ static void addDataByte(uint32_t writeAddress, uint8_t b) {
 }
 
 int processHexLine(const char *lineBuf, uint8_t lineLen) {
-    uint8_t bytes[32];
+    uint8_t bytes[64];
     uint8_t nbytes = 0;
     uint8_t checksum = 0;
 
@@ -165,7 +166,7 @@ int processHexLine(const char *lineBuf, uint8_t lineLen) {
     }
 
     if(checksum != 0) {
-        DEBUG("e checksum error: %d\n", checksum);
+        DEBUG("e hex checksum error: %d\n", checksum);
         return -1;
     }
 

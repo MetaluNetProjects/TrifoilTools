@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 metalu.net
+ * Copyright (c) 2026 metalu.net
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -8,9 +8,9 @@
 #include "hardware/watchdog.h"
 #include <stdio.h>
 #include <string.h>
-#include "fraise_bootdevice.h"
-#include "bootloader.h"
-#include "fraise_eeprom.h"
+#include "fraise_bus.hpp"
+#include "bootloader.hpp"
+//#include "fraise_eeprom.h"
 
 #ifdef FRAISE_BLD_DEBUG
 #define DEBUG printf
@@ -19,11 +19,13 @@
 #define DEBUG
 #endif
 
+FraiseUart com(FRAISE_TX_PIN, FRAISE_RX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL);
+
 static const char version_string[] = "Ipico 1\n";
 static const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 
-uint8_t lineBuf[256];
-uint8_t lineLen;
+char lineBuf[512];
+int lineLen;
 
 bool isVerified = false;
 
@@ -32,9 +34,12 @@ static inline void fraiseResetTimeout() {
     fraiseTimeout = make_timeout_time_ms(2000);
 }
 
+void fraise_puts(const char *data) {
+    com.send(data, strnlen(data, 128));
+}
 #define startsWith(str, prefix) (!(strncmp((const char *)(str), (const char *)(prefix), strlen(prefix))))
 
-void getName() {
+/*void getName() {
     char buf[32];
     int i = 0;
     buf[i++] = 'G';
@@ -42,7 +47,7 @@ void getName() {
     while(*c != 0) buf[i++] = *c++;
     buf[i++] = '\n';
     fraise_puts(buf);
-}
+}*/
 
 void verifyName(char *data, uint8_t len) {
     /*if(data[1] == '?' && len == 2) {
@@ -51,20 +56,20 @@ void verifyName(char *data, uint8_t len) {
     }
     isVerified = (strncmp(data + 1, eeprom_get_name(), len - 1) == 0);*/
     uint8_t id;
-    data[3] = 0;
-    sscanf(data + 1, "%02X", &id);
+    data[2] = 0;
+    sscanf(data, "%02X", &id);
     isVerified = (id == FRAISE_ID);
     DEBUG("l isVerified: %s\n", isVerified ? "true" : "false");
     if(isVerified) fraise_puts(" V\n");
 }
 
-void setName(char *data, uint8_t len) {
+/*void setName(char *data, uint8_t len) {
     if(strcmp(data, "RENAME:") <= 0) return;
     eeprom_write_name(data + strlen("RENAME:"));
     eeprom_commit();
     fraise_puts(" R\n");
     isVerified = true;
-}
+}*/
 
 void sendVersion() {
     fraise_puts(version_string);
@@ -74,10 +79,10 @@ void sendVersion() {
 void fraiseLineReceived(char *data, uint8_t len) {
     char c = data[0];
     //printf("l line: %s\n", data);
-    if(c == 'V') verifyName(data, len);
+    if(c == 'V') verifyName(data + 1, len - 1);
     else if(c == 'I') sendVersion();
     else if(c == 'A') run_app();
-    else if(c == 'R') setName(data, len);
+    //else if(c == 'R') setName(data, len);
     else if(c == 'W') {
         DONT_WRITE = (data[1] == '0');
         char buf[4] = "W1\n";
@@ -112,20 +117,19 @@ void fraiseLineReceived(char *data, uint8_t len) {
 }
 
 void fraiseTask() {
-    static char line[64];
+    static char line[128];
     static uint8_t lineLen;
     static uint8_t wcount;
     static uint8_t checksum;
     static absolute_time_t lineTimeout;
-    uint16_t w;
 #define lineTimedOut() time_reached(lineTimeout)
 #define lineResetTimeout() lineTimeout = make_timeout_time_ms(100)
 
-    while(fraise_getword(&w)) {
-        //printf("l w: %d \t %c\n", w, w & 127);
-        if(w > 255) {
-            if( (w & 255) != 0) {
-                run_app();
+    while(com.is_readable()) {
+        char c = com.getc();
+        if(c & 128) {
+            if( (c & 127) != 0) {
+                //run_app();
             }
             fraiseResetTimeout();
             lineResetTimeout();
@@ -134,19 +138,22 @@ void fraiseTask() {
             if(lineTimedOut()) lineLen = wcount = 0;
             lineResetTimeout();
             if(lineLen == 0) {
-                checksum = lineLen = w;
+                checksum = lineLen = c;
                 wcount = 0;
             }
             else {
-                line[wcount++] = w;
-                checksum += w;
-                if(wcount == lineLen) {
-                    if(checksum == 0) {
+                line[wcount++] = c;
+                checksum += c;
+                if(wcount == lineLen + 1) {
+                    if((checksum & 127) == 0) {
                         line[wcount - 1] = 0;
                         fraiseLineReceived(line, lineLen - 1);
                     }
                     else {
                         DEBUG("e checksum error! %d\n", checksum);/* signal checksum error)*/
+                        DEBUG("e %d bytes: ", wcount);
+                        for(int i = 0; i < wcount; i++) DEBUG("%d ", line[i]);
+                        DEBUG("\n");
                     }
                     lineLen = wcount = 0;
                 }
@@ -157,12 +164,12 @@ void fraiseTask() {
 
 #ifdef FRAISE_BLD_DEBUG
 void processLine() {
-    printf("usb line: %s\n", lineBuf);
+    //printf("usb line: %s\n", lineBuf);
 
     if(startsWith(lineBuf, "#R")) printf("sID%02X\n", FRAISE_ID);
     else if(startsWith(lineBuf, "#E")) puts((const char*)(lineBuf + 2));
     else if(startsWith(lineBuf, "#V")) printf("sV FraiseBootloader v0.1\n");
-    else if(startsWith(lineBuf, "verify")) verifyName(lineBuf + 5, lineLen);
+    else if(startsWith(lineBuf, "verify")) verifyName(lineBuf + 6, lineLen);
     else if(startsWith(lineBuf, "runapp")) run_app();
     else if(startsWith(lineBuf, "waitack")) printf("ack\n");
     else if(startsWith(lineBuf, "reboot")) {
@@ -215,9 +222,9 @@ int main() {
     stdio_init_all();
     setVerbose(true); // bootloader verbose
     absolute_time_t to = make_timeout_time_ms(5000);
-    while(!stdio_usb_connected()) {
+    /*while(!stdio_usb_connected()) {
         if(time_reached(to)) break;
-    }
+    }*/
     sleep_ms(100);
     DEBUG("l fraise_bootloader running!\n");
     sleep_ms(100);
@@ -226,8 +233,8 @@ int main() {
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_put(LED_PIN, 1);
-    eeprom_setup();
-    fraise_setup(FRAISE_RX_PIN, FRAISE_TX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL);
+    //eeprom_setup();
+    //fraise_setup(FRAISE_RX_PIN, FRAISE_TX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL);
     fraiseResetTimeout();
     nextLed = make_timeout_time_ms(100);
 

@@ -28,6 +28,8 @@ FraiseBus bus(
     FRAISE_ID
 );
 
+FraisePoller poller;
+
 FraiseBus *fraise_main_bus() {
     return &bus;
 }
@@ -67,9 +69,29 @@ void reboot() {
 #define startsWith(str, prefix) (!(strncmp((const char *)(str), (const char *)(prefix), strlen(prefix))))
 
 void processLine() {
-    if(lineBuf[0] == '#' && lineBuf[1] == 'V') {
-        printf("sV UsbFraise PicoPied v0.2\n");
-        return;
+    if(lineBuf[0] == '#') {
+        switch(lineBuf[1]) {
+        case 'V':
+            printf("sV UsbFraise PicoPied v0.2\n");
+            return;
+        case 'S':
+            {
+                int id = gethexbyte(lineBuf + 2);
+                if(id == 0) printf("sC00\n");
+                else poller.set_enable(id, true);
+            }
+            return;
+        case 'C':
+            {
+                int id = gethexbyte(lineBuf + 2);
+                if(id == 0) printf("sc00\n");
+                else poller.set_enable(id, false);
+            }
+            return;
+        case 'i':
+            //fraise_master_reset_polls();
+            return;
+        }
     }
 
     if(bus.process_command(lineBuf)) return;
@@ -110,6 +132,9 @@ struct FraiseReceiverMaster: public FraiseReceiver {
         printf("%02X%s\n", src_id + 128, data);
     }
     //virtual void received(const char *data, int len);
+    virtual void detected(int src_id) override {
+        poller.detected(src_id);
+    }
 } receiver;
 
 
@@ -125,6 +150,7 @@ int main() {
     while(true) {
         stdioTask();
         bus.service();
+        poller.service(&bus);
         loop();
     }
 }

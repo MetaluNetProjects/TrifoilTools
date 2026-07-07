@@ -86,14 +86,17 @@ bool FraiseUart::tx_in_progress() {
 }
 
 void FraiseUart::set_drive(bool drive) {
+    if(!drive) {
+        while(tx_in_progress()) tight_loop_contents();
+    }
     gpio_put(drive_pin, drive_level ? drive : !drive);
 }
 
 void FraiseUart::send(const char *data, uint8_t len) {
     set_drive(true);
     for(int i = 0; i < len; i++) putc(data[i]);
-    while(tx_in_progress()) tight_loop_contents();
-    set_drive(false);
+    //while(tx_in_progress()) tight_loop_contents();
+    //set_drive(false);
 }
 
 //void FraiseUart::set_irq_handler(irq_handler_t handler) {}
@@ -106,9 +109,10 @@ void FraiseReceiver::received_from(int src_id, const char *data, int len) {}
 void FraiseReceiver::received(const char *data, int len) {
     fraise_receivechars(data, len);
 }
+void FraiseReceiver::detected(int src_id) {}
 
 // --------------------------------------------------------------------------- //
-FraiseReceiver default_receiver;
+static FraiseReceiver default_receiver;
 
 FraiseBus::FraiseBus(FraiseCom *com, int id):
     com(com), id(id)
@@ -129,7 +133,7 @@ bool FraiseBus::process_command(char *data) {
         case 'E':
             puts((const char*)(data + 2));
             break;
-        case 'S':
+        /*case 'S':
             if(gethexbyte(data + 2) == 0) printf("sC00\n");
             //fraise_master_set_poll(gethexbyte(data + 2), true);
             break;
@@ -139,14 +143,22 @@ bool FraiseBus::process_command(char *data) {
             break;
         case 'i':
             //fraise_master_reset_polls();
-            break;
+            break;*/
         case 'F':
             state = State::receive;
+            printf("l quit bootloader mode\n");
             break;
         }
         return true;
     }
-    //else if(fraise_master_is_bootloading()) fraise_master_bootload_getline(data, len);
+    else if(state == State::bootload) {
+        if(data[0] == ':') { // push hex line to buffer
+            queue_message(data, len);
+        } else {
+            send_to(-1, data, len);
+        }
+        return true;
+    }
     else if(data[0] == '!') {
         switch(data[1]) {
         /*case 'b': {
@@ -166,6 +178,10 @@ bool FraiseBus::process_command(char *data) {
         case 'F':
             send_to(0, data + 1, 3);
             state = State::bootload;
+            boot_status.wait_ack = false;
+            messages_queue.clear();
+            rcv_len = 0;
+            printf("l switch to bootloader mode\n");
             break;
         }
         return true;
@@ -188,6 +204,7 @@ void FraiseBus::send_to(int dest_id, const char *data, int len) {
     if(len >= 128) return;
     if(dest_id > FRAISE_ID_MAX) return;
 
+    while(com->tx_in_progress()) tight_loop_contents();
     uint8_t checksum = 0;
     char buffer[256];
     int buflen = 0;
@@ -205,6 +222,7 @@ void FraiseBus::send_to(int dest_id, const char *data, int len) {
 }
 
 void FraiseBus::poll(int id) {
+    if(state == State::bootload) return;
     poll_id = id;
     if(poll_id > FRAISE_ID_MAX || poll_id <= 0) {
         poll_id = 0;
@@ -217,12 +235,23 @@ void FraiseBus::poll(int id) {
 }
 
 bool FraiseBus::queue_message(const char *data, int len) {
-    return true;
+    return messages_queue.queue_message(data, len);
+}
+
+static inline void send_zero(FraiseCom *com) {
+    char zero = 0;
+    com->send(&zero, 1);
 }
 
 void FraiseBus::send_message() {
-    char buffer[]="I'm here";
-    send_to(-1, buffer, sizeof(buffer));
+    char buffer[128];
+    int len = messages_queue.unqueue_message(buffer);
+    if(len > 0) {
+        send_to(-1, buffer, len);
+    } else {
+        char zero = 0;
+        com->send(&zero, 1);
+    }
 }
 
 static bool check_sum(char *data, int len) {
@@ -250,10 +279,12 @@ void FraiseBus::check_poll_received() {
     if(!check_sum(rcv_buffer, rcv_len)) return;
     int len = rcv_buffer[0];
     rcv_buffer[rcv_len - 1] = 0; // clear checksum to have null-terminated string
+    receiver->detected(poll_id);
     receiver->received_from(poll_id, rcv_buffer + 1, len);
 }
 
 void FraiseBus::service() {
+    if(!com->tx_in_progress()) com->set_drive(false);
     while(com->is_readable()) {
         char c = com->getc();
         switch(state) {
@@ -263,7 +294,8 @@ void FraiseBus::service() {
                     state = State::receive;
                     break;
                 }
-                if(rcv_len == 2 && c == 0) { // empty answer
+                if(rcv_len == 1 && c == 0) { // empty answer
+                    receiver->detected(poll_id);
                     state = State::receive;
                     break;
                 }
@@ -291,14 +323,84 @@ void FraiseBus::service() {
             }
             break;
             case State::bootload:
+                if(c == 'X') {
+                    boot_status.wait_ack = false;
+                    boot_status.nb_trials = 0;
+                    rcv_len = 0;
+                }
                 printf("b%c\n", c);
             break;
             default: ;
+        }
+    }
+    if(state == State::bootload) {
+        if(!boot_status.wait_ack) {
+            if(rcv_len == 0) {
+                rcv_len = messages_queue.unqueue_message(rcv_buffer);
+            }
+            if(rcv_len > 0) {
+                send_to(-1, rcv_buffer, rcv_len);
+                boot_status.wait_ack = true;
+                boot_status.timeout = make_timeout_time_ms(100);
+            } else boot_status.timeout = at_the_end_of_time;
+        } else if(time_reached(boot_status.timeout)) {
+            if(++boot_status.nb_trials > boot_status.max_trials) {
+                printf("bE\n");
+                messages_queue.clear();
+            } else printf("l retry %d\n", boot_status.nb_trials);
+            boot_status.wait_ack = false;
+            boot_status.timeout = at_the_end_of_time;
         }
     }
 }
 
 void FraiseBus::set_receiver(FraiseReceiver *r) {
     receiver = r;
+}
+
+// --------------------------------------------------------------------------- //
+
+void FraisePoller::set_enable(int id, bool enable) {
+    devices[id].enabled = enable;
+    devices[id].detected = false;
+}
+
+void FraisePoller::service(FraiseBus *bus) {
+    if(detected_timeout != at_the_end_of_time) {
+        if(time_reached(detected_timeout)) {
+            devices[current_id].detected = false;
+            detected_timeout = at_the_end_of_time;
+        } else return;
+    }
+
+    if(time_reached(print_timeout)) {
+        print_timeout = make_timeout_time_ms(100);
+        for(int i = 1; i <= FRAISE_ID_MAX; i++) {
+            DeviceStatus &device = devices[i];
+            if(device.sent_detected != device.detected) {
+                device.sent_detected = device.detected;
+                if(device.detected) printf("sC%02X\n", i);
+                else printf("sc%02X\n", i);
+            }
+        }
+    }
+
+    if(bus->tx_in_progress()) return;
+
+    if(!time_reached(timeout)) return;
+    timeout = make_timeout_time_ms(1);
+    for(int i = 0; i <= FRAISE_ID_MAX; i++) {
+        current_id = (current_id + 1) % (FRAISE_ID_MAX + 1);
+        if(devices[current_id].enabled) {
+            bus->poll(current_id);
+            detected_timeout = make_timeout_time_ms(10);
+            break;
+        }
+    }
+}
+
+void FraisePoller::detected(int id) {
+    if((id == current_id) && devices[id].enabled) devices[id].detected = true;
+    detected_timeout = at_the_end_of_time;
 }
 

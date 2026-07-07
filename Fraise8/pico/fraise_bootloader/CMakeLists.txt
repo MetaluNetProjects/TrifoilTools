@@ -1,8 +1,6 @@
 project(bootloader C CXX ASM)
 
-add_executable(bootloader main.c fraise_bootdevice.c bootloader.c)
-
-pico_generate_pio_header(bootloader ${CMAKE_CURRENT_LIST_DIR}/fraise.pio)
+add_executable(bootloader main.cpp bootloader.cpp)
 
 pico_add_extra_outputs(bootloader)
 
@@ -17,13 +15,13 @@ target_link_libraries(bootloader
     hardware_irq
     hardware_watchdog
     hardware_structs
-    hardware_pio
     hardware_resets
     hardware_sync
     hardware_flash
     #pico_unique_id
     cmsis_core
-    fraise_eeprom
+    #fraise_eeprom
+    fraise_bus
 )
 
 pico_enable_stdio_usb(bootloader 0)

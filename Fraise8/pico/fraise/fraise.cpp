@@ -5,7 +5,7 @@
  */
 
 #include "pico/stdlib.h"
-#include "hardware/pio.h"
+//#include "hardware/pio.h"
 #include "fraise.hpp"
 
 uint8_t gethexbyte(const char *buf)
@@ -156,6 +156,8 @@ bool fraise_put_send(){
 /* -------------------------------------------------*/
 /* ------------------- Misc ------------------------*/
 
+#if 0
+
 bool claim_pio_sm_irq(const pio_program_t *program, PIO *pio_hw, uint *sm, uint *program_offset, uint *irq) {
     // Find a free pio
     *pio_hw = pio1;
@@ -189,4 +191,4 @@ bool claim_pio_sm_irq(const pio_program_t *program, PIO *pio_hw, uint *sm, uint 
 
     return true;
 }
-
+#endif

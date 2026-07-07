@@ -8,6 +8,7 @@
 
 #include "pico/stdlib.h"
 #include <stdio.h>
+#include "ringbuffer.hpp"
 
 #define FRAISE_ID_MAX 127
 
@@ -50,6 +51,7 @@ struct FraiseReceiver {
     virtual void sent_to(int dest_id, const char *data, int len);
     virtual void received_from(int src_id, const char *data, int len);
     virtual void received(const char *data, int len);
+    virtual void detected(int src_id);
 };
 
 class FraiseBus {
@@ -60,10 +62,17 @@ private:
     enum class State {poll, receive, send, bootload} state = State::receive;
     char rcv_buffer[256]{0};
     int rcv_len = -1;
+    RingBuffer<char, 512> messages_queue;
     int poll_id = 0;
     void send_message();
     void check_received();
     void check_poll_received();
+    struct BootStatus {
+        static const int max_trials = 10;
+        bool wait_ack = false;
+        absolute_time_t timeout = at_the_end_of_time;
+        int nb_trials = 0;
+    } boot_status;
 
 public:
     FraiseBus(FraiseCom *com = nullptr, int id = -1);
@@ -73,6 +82,25 @@ public:
     bool queue_message(const char *data, int len);
     void service();
     void set_receiver(FraiseReceiver *r);
+    bool tx_in_progress() { return com->tx_in_progress(); }
+};
+
+class FraisePoller {
+private:
+    int current_id = 0;
+    absolute_time_t timeout = 0;
+    absolute_time_t detected_timeout = at_the_end_of_time;
+    absolute_time_t print_timeout = 0;
+    struct DeviceStatus {
+        bool enabled;
+        bool detected;
+        bool sent_detected;
+    };
+    DeviceStatus devices[FRAISE_ID_MAX + 1]{0};
+public:
+    void set_enable(int id, bool enable);
+    void service(FraiseBus *bus);
+    void detected(int id);
 };
 
 FraiseBus *fraise_main_bus();
