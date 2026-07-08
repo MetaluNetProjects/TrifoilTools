@@ -89,7 +89,7 @@ void processLine() {
             }
             return;
         case 'i':
-            //fraise_master_reset_polls();
+            poller.reset();
             return;
         }
     }
@@ -132,8 +132,8 @@ struct FraiseReceiverMaster: public FraiseReceiver {
         printf("%02X%s\n", src_id + 128, data);
     }
     //virtual void received(const char *data, int len);
-    virtual void detected(int src_id) override {
-        poller.detected(src_id);
+    virtual void detected(int src_id, bool is_detected) override {
+        poller.detected(src_id, is_detected);
     }
 } receiver;
 

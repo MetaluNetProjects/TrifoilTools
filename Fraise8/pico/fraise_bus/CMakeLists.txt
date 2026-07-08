@@ -1,6 +1,8 @@
 add_library(fraise_bus INTERFACE)
 
 target_sources(fraise_bus INTERFACE 
+	${CMAKE_CURRENT_LIST_DIR}/fraise_uart.cpp
+	${CMAKE_CURRENT_LIST_DIR}/fraise_poller.cpp
 	${CMAKE_CURRENT_LIST_DIR}/fraise_bus.cpp
 )
 

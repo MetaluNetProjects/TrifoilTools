@@ -76,6 +76,7 @@ public:
     }
 
     bool queue_message(const char *data, int len) {
+        if(len > 127) return false;
         if(available() < len + 1) {
             return false;
         }
@@ -86,34 +87,63 @@ public:
         return true;
     }
 
-    int unqueue_message(char *data) {
-        if(empty()) {
-            return 0;
+    bool queue_message(char id, const char *data, int len) {
+        if(len > 126) return false;
+        if(available() < len + 2) {
+            return false;
         }
-        char l = getFront();
-        if(!(l & 128)) { // format error in message queue!
-            while(!empty()) {
-                if(getFront() & 128) break;
-                pop_front();
-            }
-            if(empty()) {
-                return 0;
-            }
-            l = getFront();
+        push_back(len + 1 + 128);
+        push_back(id & 127);
+        for(int i = 0; i < len; i++) {
+            push_back(data[i] & 127);
         }
-        pop_front();
-        l &= 127;
-        for(int i = 0; i < l; i++) {
-            if(empty()) { // empty error in message queue!
-                return 0;
-            }
-            data[i] = getFront();
-            if(data[i] & 128) { // premature end error in message queue!
-                return 0;
-            }
+        return true;
+    }
+
+    bool find_message_start() {
+        while(! empty()) {
+            if(getFront() & 128) break;
             pop_front();
         }
-        return l;
+        return ! empty();
+    }
+
+    bool get_next_data_byte(char &c) {
+        if(empty()) return false;
+        c = getFront();
+        if(c & 128) return false; // not data!
+        pop_front();
+        return true;
+    }
+
+    int unqueue_message(char *data) {
+        if(!find_message_start()) {
+            return 0;
+        }
+        char len = getFront();
+        pop_front();
+        len &= 127;
+        if(len < 1) return 0;
+        for(int i = 0; i < len; i++) {
+            if(! get_next_data_byte(data[i])) return 0;
+        }
+        return len;
+    }
+
+    int unqueue_message(char &id, char *data) {
+        if(!find_message_start()) {
+            return 0;
+        }
+        char len = getFront();
+        pop_front();
+        len &= 127;
+        if(len < 2) return 0;
+        len -= 1;
+        if(! get_next_data_byte(id)) return 0;
+        for(int i = 0; i < len; i++) {
+            if(! get_next_data_byte(data[i])) return 0;
+        }
+        return len;
     }
 };
 

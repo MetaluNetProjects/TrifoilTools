@@ -37,6 +37,9 @@ void fraise_receivechars(const char *data, uint8_t len){
     case 'P':
         fraise_main_bus()->poll(gethexbyte(data + 1));
         break;
+    case 'S':
+        fraise_printf("state %s\n", fraise_main_bus()->get_state_name());
+        break;
     }
 }
 

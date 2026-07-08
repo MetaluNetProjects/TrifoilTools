@@ -9,109 +9,12 @@
 #define FRAISE_DONT_OVERWRITE_PRINTF
 #include "fraise.hpp"
 #include "fraise_bus.hpp"
-#include <hardware/uart.h>
 #include <cstring>
 
-#define FRAISE_UART_BAUDRATE 250000
-
-FraiseUart::FraiseUart(int txpin, int rxpin, int drvpin, bool drvlevel):
-    drive_pin(drvpin), drive_level(drvlevel)
-{
-    switch(txpin) {
-/*    case 0:
-    case 12:
-    case 16:
-    case 28:
-#if !PICO_RP2040
-    case 2:
-    case 14:
-    case 18:
-    case 30:
-    case 32:
-    case 34:
-    case 44:
-    case 46:
-#endif
-        uart = uart0;
-        break;
-*/
-
-    case 4:
-    case 8:
-    case 20:
-    case 24:
-#if !PICO_RP2040
-    case 6:
-    case 10:
-    case 22:
-    case 26:
-    case 36:
-    case 38:
-    case 40:
-    case 42:
-#endif
-        uart = uart1;
-        break;
-
-    default:
-        uart = uart0;
-    }
-
-    uart_init(uart, FRAISE_UART_BAUDRATE);
-    gpio_set_function(txpin, UART_FUNCSEL_NUM(uart, UART_TX_PIN));
-    gpio_set_function(rxpin, UART_FUNCSEL_NUM(uart, UART_RX_PIN));
-    gpio_init(drive_pin);
-    gpio_set_dir(drive_pin, GPIO_OUT);
-    gpio_put(drive_pin, !drive_level);
-}
-
-bool FraiseUart::is_readable() {
-    return uart_is_readable(uart);
-}
-
-char FraiseUart::getc() {
-    return uart_getc(uart);
-}
-
-bool FraiseUart::is_writable() {
-    return uart_is_writable(uart);
-}
-
-void FraiseUart::putc(char c) {
-    uart_putc_raw(uart, c);
-}
-
-bool FraiseUart::tx_in_progress() {
-    return (uart_get_hw(uart)->fr & UART_UARTFR_BUSY_BITS);
-}
-
-void FraiseUart::set_drive(bool drive) {
-    if(!drive) {
-        while(tx_in_progress()) tight_loop_contents();
-    }
-    gpio_put(drive_pin, drive_level ? drive : !drive);
-}
-
-void FraiseUart::send(const char *data, uint8_t len) {
-    set_drive(true);
-    for(int i = 0; i < len; i++) putc(data[i]);
-    //while(tx_in_progress()) tight_loop_contents();
-    //set_drive(false);
-}
-
-//void FraiseUart::set_irq_handler(irq_handler_t handler) {}
-//void FraiseUart::set_irqs_enabled (bool rx_has_data, bool tx_needs_data) {}
-
-// --------------------------------------------------------------------------- //
-
-void FraiseReceiver::sent_to(int dest_id, const char *data, int len) {}
-void FraiseReceiver::received_from(int src_id, const char *data, int len) {}
 void FraiseReceiver::received(const char *data, int len) {
     fraise_receivechars(data, len);
 }
-void FraiseReceiver::detected(int src_id) {}
 
-// --------------------------------------------------------------------------- //
 static FraiseReceiver default_receiver;
 
 FraiseBus::FraiseBus(FraiseCom *com, int id):
@@ -133,17 +36,6 @@ bool FraiseBus::process_command(char *data) {
         case 'E':
             puts((const char*)(data + 2));
             break;
-        /*case 'S':
-            if(gethexbyte(data + 2) == 0) printf("sC00\n");
-            //fraise_master_set_poll(gethexbyte(data + 2), true);
-            break;
-        case 'C':
-            if(gethexbyte(data + 2) == 0) printf("sc00\n");
-            //fraise_master_set_poll(gethexbyte(data + 2), false);
-            break;
-        case 'i':
-            //fraise_master_reset_polls();
-            break;*/
         case 'F':
             state = State::receive;
             printf("l quit bootloader mode\n");
@@ -189,10 +81,9 @@ bool FraiseBus::process_command(char *data) {
     else if(ishex(data[0]) && ishex(data[1])) { // normal output to fruit
         uint8_t dest_id = gethexbyte(data) - 128;
         if(dest_id == 0) {
-            //fraise_receivechars(data + 2, len - 2);
             receiver->received(data + 2, len - 2);
         } else if(dest_id < FRAISE_ID_MAX) {
-            send_to(dest_id, data + 2, len - 2);
+            send_queue.queue_message(dest_id, data + 2, len - 2);
         }
         return true;
     }
@@ -204,7 +95,9 @@ void FraiseBus::send_to(int dest_id, const char *data, int len) {
     if(len >= 128) return;
     if(dest_id > FRAISE_ID_MAX) return;
 
-    while(com->tx_in_progress()) tight_loop_contents();
+    while(is_busy()) {
+        if(state == State::poll) service(false);
+    }
     uint8_t checksum = 0;
     char buffer[256];
     int buflen = 0;
@@ -232,6 +125,7 @@ void FraiseBus::poll(int id) {
     com->send(buffer, 2);
     rcv_len = 0;
     state = State::poll;
+    poll_timeout = make_timeout_time_ms(FRAISE_POLL_TIMEOUT_MS);
 }
 
 bool FraiseBus::queue_message(const char *data, int len) {
@@ -279,23 +173,31 @@ void FraiseBus::check_poll_received() {
     if(!check_sum(rcv_buffer, rcv_len)) return;
     int len = rcv_buffer[0];
     rcv_buffer[rcv_len - 1] = 0; // clear checksum to have null-terminated string
-    receiver->detected(poll_id);
+    receiver->detected(poll_id, true);
     receiver->received_from(poll_id, rcv_buffer + 1, len);
 }
 
-void FraiseBus::service() {
-    if(!com->tx_in_progress()) com->set_drive(false);
+void FraiseBus::check_poll_timeout() {
+    if(time_reached(poll_timeout) && state == State::poll) {
+        poll_timeout = 0;
+        receiver->detected(poll_id, false);
+        state = State::receive;
+    }
+}
+
+void FraiseBus::service(bool enable_send) {
     while(com->is_readable()) {
         char c = com->getc();
         switch(state) {
             case State::poll: {
+                poll_timeout = make_timeout_time_ms(1);
                 if(rcv_len < 130) rcv_buffer[rcv_len++] = c;
                 else {
                     state = State::receive;
                     break;
                 }
                 if(rcv_len == 1 && c == 0) { // empty answer
-                    receiver->detected(poll_id);
+                    receiver->detected(poll_id, true);
                     state = State::receive;
                     break;
                 }
@@ -333,6 +235,18 @@ void FraiseBus::service() {
             default: ;
         }
     }
+
+    check_poll_timeout();
+
+    if(enable_send && state == State::receive) {
+        char buffer[128];
+        char dest_id;
+        int len = send_queue.unqueue_message(dest_id, buffer);
+        if(len > 0) {
+            send_to(dest_id, buffer, len);
+        }
+    }
+
     if(state == State::bootload) {
         if(!boot_status.wait_ack) {
             if(rcv_len == 0) {
@@ -356,51 +270,5 @@ void FraiseBus::service() {
 
 void FraiseBus::set_receiver(FraiseReceiver *r) {
     receiver = r;
-}
-
-// --------------------------------------------------------------------------- //
-
-void FraisePoller::set_enable(int id, bool enable) {
-    devices[id].enabled = enable;
-    devices[id].detected = false;
-}
-
-void FraisePoller::service(FraiseBus *bus) {
-    if(detected_timeout != at_the_end_of_time) {
-        if(time_reached(detected_timeout)) {
-            devices[current_id].detected = false;
-            detected_timeout = at_the_end_of_time;
-        } else return;
-    }
-
-    if(time_reached(print_timeout)) {
-        print_timeout = make_timeout_time_ms(100);
-        for(int i = 1; i <= FRAISE_ID_MAX; i++) {
-            DeviceStatus &device = devices[i];
-            if(device.sent_detected != device.detected) {
-                device.sent_detected = device.detected;
-                if(device.detected) printf("sC%02X\n", i);
-                else printf("sc%02X\n", i);
-            }
-        }
-    }
-
-    if(bus->tx_in_progress()) return;
-
-    if(!time_reached(timeout)) return;
-    timeout = make_timeout_time_ms(1);
-    for(int i = 0; i <= FRAISE_ID_MAX; i++) {
-        current_id = (current_id + 1) % (FRAISE_ID_MAX + 1);
-        if(devices[current_id].enabled) {
-            bus->poll(current_id);
-            detected_timeout = make_timeout_time_ms(10);
-            break;
-        }
-    }
-}
-
-void FraisePoller::detected(int id) {
-    if((id == current_id) && devices[id].enabled) devices[id].detected = true;
-    detected_timeout = at_the_end_of_time;
 }
 

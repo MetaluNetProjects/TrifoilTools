@@ -11,6 +11,7 @@
 #include "ringbuffer.hpp"
 
 #define FRAISE_ID_MAX 127
+#define FRAISE_POLL_TIMEOUT_MS 10
 
 class FraiseCom {
 public:
@@ -48,10 +49,10 @@ private:
 };
 
 struct FraiseReceiver {
-    virtual void sent_to(int dest_id, const char *data, int len);
-    virtual void received_from(int src_id, const char *data, int len);
+    virtual void sent_to(int dest_id, const char *data, int len) {}
+    virtual void received_from(int src_id, const char *data, int len) {}
     virtual void received(const char *data, int len);
-    virtual void detected(int src_id);
+    virtual void detected(int src_id, bool is_detected) {}
 };
 
 class FraiseBus {
@@ -62,11 +63,14 @@ private:
     enum class State {poll, receive, send, bootload} state = State::receive;
     char rcv_buffer[256]{0};
     int rcv_len = -1;
-    RingBuffer<char, 512> messages_queue;
+    RingBuffer<char, 1024> messages_queue;
+    RingBuffer<char, 1024> send_queue;
     int poll_id = 0;
+    absolute_time_t poll_timeout = at_the_end_of_time;
     void send_message();
     void check_received();
     void check_poll_received();
+    void check_poll_timeout();
     struct BootStatus {
         static const int max_trials = 10;
         bool wait_ack = false;
@@ -80,16 +84,27 @@ public:
     void send_to(int dest_id, const char *data, int len); // start with 8-bit address if (dest_id >= 0)
     void poll(int poll_id);
     bool queue_message(const char *data, int len);
-    void service();
+    void service(bool enable_send = true);
     void set_receiver(FraiseReceiver *r);
-    bool tx_in_progress() { return com->tx_in_progress(); }
+    bool is_busy() { 
+        return com->tx_in_progress() || (state == State::poll) || (state == State::send);
+    }
+    State get_state() { return state; }
+    const char *get_state_name() {
+        switch(state) {
+        case State::poll: return "poll"; break;
+        case State::receive: return "receive"; break;
+        case State::send: return "send"; break;
+        case State::bootload: return "bootload"; break;
+        default: return"?";
+        }
+    }
 };
 
 class FraisePoller {
 private:
     int current_id = 0;
     absolute_time_t timeout = 0;
-    absolute_time_t detected_timeout = at_the_end_of_time;
     absolute_time_t print_timeout = 0;
     struct DeviceStatus {
         bool enabled;
@@ -100,7 +115,8 @@ private:
 public:
     void set_enable(int id, bool enable);
     void service(FraiseBus *bus);
-    void detected(int id);
+    void detected(int id, bool is_detected);
+    void reset();
 };
 
 FraiseBus *fraise_main_bus();
