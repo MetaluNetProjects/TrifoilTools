@@ -26,8 +26,9 @@
 #include "fraise_bus.hpp"
 #include "fraise_eeprom.h"
 
+FraiseUart uart(FRAISE_TX_PIN, FRAISE_RX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL);
 FraiseBus bus(
-    new FraiseUart(FRAISE_TX_PIN, FRAISE_RX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL), 
+    &uart, 
     FRAISE_ID
 );
 
