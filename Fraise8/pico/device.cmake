@@ -20,7 +20,7 @@ target_compile_definitions(${projName} PUBLIC FRAISE_DRV_LEVEL=${FRAISE_DRV_LEVE
 target_compile_definitions(${projName} PUBLIC FRAISE_ID=${FRAISE_ID})
 
 # add pico modules
-add_subdirectory("${fraise_path}/pico/" modules)
+add_subdirectory("${fraise_path}/pico/" fraise8_modules)
 
 pico_add_extra_outputs(${projName})
 
