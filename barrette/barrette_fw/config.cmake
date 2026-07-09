@@ -1,4 +1,3 @@
-#target_link_libraries(${CMAKE_PROJECT_NAME} hardware_adc)
 
 set(USB_DEBUG false)
 if(${USB_DEBUG})
@@ -7,3 +6,5 @@ if(${USB_DEBUG})
     set_target_properties(bootloader PROPERTIES COMPILE_OPTIONS "-DFRAISE_BLD_DEBUG")
 endif()
 
+add_subdirectory(../../../modules modules)
+target_link_libraries(${CMAKE_PROJECT_NAME} ws2812)
