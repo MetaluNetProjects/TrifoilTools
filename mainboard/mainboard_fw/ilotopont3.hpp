@@ -1,0 +1,84 @@
+/**
+ * Simple blinking fruit
+ */
+
+#pragma once
+#include "motorcontrol.hpp"
+#include "hardware/adc.h"
+
+class Ilotopont3 : public MotorControl {
+private:
+    const int PWM_MAX = 5555 / 2; // 22.5kHz ; half the value because of phase correct
+    int pin_AL, pin_AH, pin_BL, pin_BH, pin_temp, pin_current;
+
+    float temperature_C = 0;
+    float current_mA = 0;
+
+    int adc_period_ms = 2;
+    float adc_filter = 0.1;
+    absolute_time_t adc_timeout;
+
+    float speed_consign = 0.0;
+    float speed_real = 0.0;
+
+    int deadtime_steps = 12;
+
+    bool valid = true;
+
+    void pin_init_pwmout(int pin) {
+        gpio_set_function(pin, GPIO_FUNC_PWM);
+        gpio_set_dir(pin, GPIO_OUT);
+    }
+    void init_pwm(int pin_low, int pîn_high) {
+        uint slice_num = pwm_gpio_to_slice_num(pin_low);
+        if(slice_num != pwm_gpio_to_slice_num(pîn_high)) {
+            valid = false;
+            return;
+        }
+        pin_init_pwmout(pin_low);
+        pin_init_pwmout(pîn_high);
+        pwm_set_wrap(slice_num, PWM_MAX);
+        pwm_set_enabled(slice_num, true);
+        pwm_set_phase_correct(slice_num, true);
+    }
+    void do_adc() {
+        adc_select_input(pin_temp - 26);
+        float temp = adc_read() * 1.0;
+        temperature_C += (temp - temperature_C) * adc_filter;
+
+        adc_select_input(pin_current - 26);
+        float cur = adc_read() * 1.0;
+        current_mA += (cur - current_mA) * adc_filter;
+    }
+    void adc_service() {
+        if(!time_reached(adc_timeout)) return;
+        adc_timeout = make_timeout_time_ms(adc_period_ms);
+        do_adc();
+    }
+    void update_pwm() {
+        if(!valid) return;
+    }
+public:
+    Ilotopont3(int p_al, int p_ah, int p_bl, int p_bh, int p_temp, int p_current): 
+            pin_AL(p_al), pin_AH(p_ah), pin_BL(p_bl), pin_BH(p_bh), pin_temp(p_temp), pin_current(p_current) {
+        init_pwm(pin_AL, pin_AH);
+        init_pwm(pin_BL, pin_BH);
+
+        adc_init();
+        adc_gpio_init(pin_temp);
+        adc_gpio_init(pin_current);
+    }
+    void service() override {
+        adc_service();
+    }
+    void set_speed(float speed) override {
+        speed_consign = speed;
+    }
+    int get_temperature_C() override {
+        return (int)temperature_C;
+    }
+    int get_current_mA() override {
+        return (int)current_mA;
+    }
+};
+
