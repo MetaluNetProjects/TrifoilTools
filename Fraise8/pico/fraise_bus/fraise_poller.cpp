@@ -19,7 +19,7 @@ void FraisePoller::set_enable(int id, bool enable) {
 
 void FraisePoller::service(FraiseBus *bus) {
     if(time_reached(print_timeout)) {
-        print_timeout = make_timeout_time_ms(100);
+        print_timeout = make_timeout_time_ms(print_ms);
         for(int i = 1; i <= FRAISE_ID_MAX; i++) {
             DeviceStatus &device = devices[i];
             if(device.sent_detected != device.detected) {
@@ -33,7 +33,7 @@ void FraisePoller::service(FraiseBus *bus) {
     if(bus->is_busy()) return;
 
     if(!time_reached(timeout)) return;
-    timeout = make_timeout_time_ms(1);
+    timeout = make_timeout_time_ms(poll_ms);
     for(int i = 0; i <= FRAISE_ID_MAX; i++) {
         current_id = (current_id + 1) % (FRAISE_ID_MAX + 1);
         if(devices[current_id].enabled) {

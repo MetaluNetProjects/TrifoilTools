@@ -101,7 +101,7 @@ void switch_to_bootloader_if_name_matches(const char *data, uint8_t len)
     reboot();
 }
 
-struct FraiseReceiverMaster: public FraiseReceiver {
+struct FraiseReceiverDevice: public FraiseReceiver {
     virtual void sent_to(int dest_id, const char *data, int len) override {
         printf("l sent_to %d: ", dest_id);
         for(int i = 0; i < len; i++) printf("%d ", data[i]);
@@ -114,6 +114,7 @@ struct FraiseReceiverMaster: public FraiseReceiver {
     }
     //virtual void received_from(int src_id, const char *data, int len) override {}
     //virtual void received(const char *data, int len) override {}
+    //virtual void detected(int src_id, bool is_detected) override {}
 } receiver;
 
 void fraise_putchar(char c) {

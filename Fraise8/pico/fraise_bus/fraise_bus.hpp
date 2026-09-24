@@ -106,6 +106,8 @@ private:
     int current_id = 0;
     absolute_time_t timeout = 0;
     absolute_time_t print_timeout = 0;
+    int poll_ms = 1;
+    int print_ms = 100;
     struct DeviceStatus {
         bool enabled;
         bool detected;
