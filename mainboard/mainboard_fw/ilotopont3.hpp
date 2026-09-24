@@ -5,6 +5,9 @@
 #pragma once
 #include "motorcontrol.hpp"
 #include "hardware/adc.h"
+#include "hardware/pwm.h"
+#include "fraise.hpp"
+#include <math.h>
 
 class Ilotopont3 : public MotorControl {
 private:
@@ -29,17 +32,27 @@ private:
         gpio_set_function(pin, GPIO_FUNC_PWM);
         gpio_set_dir(pin, GPIO_OUT);
     }
-    void init_pwm(int pin_low, int pîn_high) {
+    void init_pwm(int pin_low, int pin_high) {
         uint slice_num = pwm_gpio_to_slice_num(pin_low);
-        if(slice_num != pwm_gpio_to_slice_num(pîn_high)) {
+        if(slice_num != pwm_gpio_to_slice_num(pin_high)) {
+            valid = false;
+            return;
+        }
+        if(pwm_gpio_to_channel(pin_low) == pwm_gpio_to_channel(pin_high)) {
             valid = false;
             return;
         }
         pin_init_pwmout(pin_low);
-        pin_init_pwmout(pîn_high);
+        pin_init_pwmout(pin_high);
         pwm_set_wrap(slice_num, PWM_MAX);
-        pwm_set_enabled(slice_num, true);
         pwm_set_phase_correct(slice_num, true);
+        if(pwm_gpio_to_channel(pin_low) == 0) {
+            pwm_set_output_polarity(slice_num, true, false);
+        } else {
+            pwm_set_output_polarity(slice_num, false, true);
+        }
+        pwm_set_both_levels(slice_num, 0, 0);
+        pwm_set_enabled(slice_num, true);
     }
     void do_adc() {
         adc_select_input(pin_temp - 26);
@@ -57,6 +70,19 @@ private:
     }
     void update_pwm() {
         if(!valid) return;
+        int pwml = abs(speed_real) * (PWM_MAX + deadtime_steps);
+        int pwmh = MAX(0, pwml - deadtime_steps);
+        if(speed_real > 0) {
+            pwm_set_gpio_level(pin_AL, 0);
+            pwm_set_gpio_level(pin_AH, 0);
+            pwm_set_gpio_level(pin_BL, pwml);
+            pwm_set_gpio_level(pin_BH, pwmh);
+        } else {
+            pwm_set_gpio_level(pin_BL, 0);
+            pwm_set_gpio_level(pin_BH, 0);
+            pwm_set_gpio_level(pin_AL, pwml);
+            pwm_set_gpio_level(pin_AH, pwmh);
+        }
     }
 public:
     Ilotopont3(int p_al, int p_ah, int p_bl, int p_bh, int p_temp, int p_current): 
@@ -70,15 +96,39 @@ public:
     }
     void service() override {
         adc_service();
+        update_pwm();
     }
     void set_speed(float speed) override {
-        speed_consign = speed;
+        speed_consign = speed_real = speed;
     }
     int get_temperature_C() override {
         return (int)temperature_C;
     }
     int get_current_mA() override {
         return (int)current_mA;
+    }
+    void receivechars(const char *data, uint8_t len) override {
+        char command = data[0];
+        len -= 1; data += 1;
+        switch(command) {
+        case 'S': // Speed
+            {
+                int speed;
+                sscanf(data, "%04X", &speed);
+                set_speed(speed);
+            }
+            break;
+        case 'd': // dead time
+            {
+                int deadtime;
+                sscanf(data, "%02X", &deadtime);
+                deadtime_steps = deadtime;
+            }
+            break;
+        case 's': // get stats
+            fraise_printf("M temp: %d cur: %d\n", get_temperature_C(), get_current_mA());
+            break;
+        }
     }
 };
 
