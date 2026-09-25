@@ -1,17 +1,18 @@
 /**
- * Simple blinking fruit
+ * Ilotopont3 board driver
  */
 
 #pragma once
 #include "motorcontrol.hpp"
 #include "hardware/adc.h"
 #include "hardware/pwm.h"
+#include "hardware/clocks.h"
 #include "fraise.hpp"
 #include <math.h>
 
 class Ilotopont3 : public MotorControl {
 private:
-    const int PWM_MAX = 5555 / 2; // 22.5kHz ; half the value because of phase correct
+    const int PWM_MAX = clock_get_hz(clk_sys) / (22500 * 2); // 22.5kHz ; half the value because of phase correct
     int pin_AL, pin_AH, pin_BL, pin_BH, pin_temp, pin_current;
 
     float temperature_C = 0;
@@ -70,7 +71,7 @@ private:
     }
     void update_pwm() {
         if(!valid) return;
-        int pwml = abs(speed_real) * (PWM_MAX + deadtime_steps);
+        int pwml = abs(speed_real) * (PWM_MAX + deadtime_steps + 1);
         int pwmh = MAX(0, pwml - deadtime_steps);
         if(speed_real > 0) {
             pwm_set_gpio_level(pin_AL, 0);
@@ -107,22 +108,29 @@ public:
     int get_current_mA() override {
         return (int)current_mA;
     }
+    void set_deadtime_ns(int ns) {
+        deadtime_steps = (ns * (clock_get_hz(clk_sys) / 1000)) / 1e6;
+        fraise_printf("deadtime_steps %d\n", deadtime_steps);
+    }
     void receivechars(const char *data, uint8_t len) override {
         char command = data[0];
         len -= 1; data += 1;
         switch(command) {
         case 'S': // Speed
             {
-                int speed;
-                sscanf(data, "%04X", &speed);
+                int ispeed;
+                sscanf(data, "%04X", &ispeed);
+                float speed = ((int16_t)ispeed) / 1000.0;
+                fraise_printf("speed %f\n", speed);
                 set_speed(speed);
             }
             break;
-        case 'd': // dead time
+        case 'd': // dead time ns
             {
                 int deadtime;
-                sscanf(data, "%02X", &deadtime);
-                deadtime_steps = deadtime;
+                sscanf(data, "%04X", &deadtime);
+                fraise_printf("deadtime_ns %d\n", deadtime);
+                set_deadtime_ns(deadtime);
             }
             break;
         case 's': // get stats
