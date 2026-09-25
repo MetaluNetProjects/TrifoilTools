@@ -36,7 +36,7 @@
 #X msg 586 12 20;
 #X msg 652 19 10;
 #X obj 512 13 bng 20 250 50 0 empty empty empty 0 -10 0 12 #fcfcfc #000000 #000000;
-#X obj 40 132 fruit/fruit 1 testboard 63 testboard_fw 1;
+#X obj 40 132 fruit/fruit \$1 testboard 63 testboard_fw 1;
 #X connect 1 0 5 1;
 #X connect 3 0 4 0;
 #X connect 6 0 7 0;

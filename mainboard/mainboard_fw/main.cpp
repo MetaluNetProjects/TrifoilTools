@@ -1,9 +1,11 @@
 /**
- * Simple blinking fruit
+ * Mainboard firmware
  */
 
 #include "fraise.hpp"
+#include "fraise_bus.hpp"
 #include "ilotopont3.hpp"
+#include "barrette.hpp"
 #include "pico/stdlib.h"
 
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
@@ -16,12 +18,13 @@ const uint PIN_MOT_BH = 3;
 const uint PIN_MOT_TEMP = 26;
 const uint PIN_MOT_CURRENT = 27;
 
-uint64_t halls;
-
 Ilotopont3 ilotopont(PIN_MOT_AL, PIN_MOT_AH, PIN_MOT_BL, PIN_MOT_BH, PIN_MOT_TEMP, PIN_MOT_CURRENT);
 MotorControl &motor = ilotopont;
 
+Barrette<10, 36> barrette;
+
 void setup() {
+    ilotopont.set_deadtime_ns(200);
 }
 
 void loop(){
@@ -33,6 +36,7 @@ void loop(){
         nextLed = make_timeout_time_ms(ledPeriod);
     }
     motor.service();
+    barrette.service();
 }
 
 bool decode_uint8(const char *& data, uint8_t &len, uint8_t &res) {
@@ -49,18 +53,20 @@ void fraise_receivechars(const char *data, uint8_t len){
     case 'E': // Echo
         fraise_printf("E%s\n", data);
         break;
-    case 'H': // barrette Hall
+    case 'B': // barrette
         {
-            int src_id;
-            uint64_t new_halls;
-            int ret = sscanf(data, "%02X%016llX", &src_id, &new_halls);
-            if(ret == 2 && src_id == 10) {
-                halls = new_halls;
+            uint8_t id;
+            if(!decode_uint8(data, len, id)) return;
+            if(barrette.get_id() == id) {
+                barrette.receivechars(data, len);
             }
         }
         break;
     case 'M': // Motor
         motor.receivechars(data, len);
+        break;
+    case 'h': // query barrette Hall
+        barrette.query_halls();
         break;
     }
 }

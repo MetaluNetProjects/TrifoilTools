@@ -15,7 +15,8 @@ const uint PIN_HALLSR_SH = 0;
 const uint PIN_HALLSR_CK = 1;
 const uint PIN_HALLSR_DATA = 2;
 
-const uint PIN_WS2812 = 22;
+//const uint PIN_WS2812 = 22;
+const uint PIN_WS2812 = 19;
 const bool WS2812_IS_RGBW = false;
 const uint WS2812_NUM_PIXELS = 36;
 
@@ -24,6 +25,7 @@ const int halls_per_barrette = 12;
 const int bits_per_barrette = 16;
 
 HallShifter hall_shifter(num_hall_barrettes * bits_per_barrette, PIN_HALLSR_SH, PIN_HALLSR_CK, PIN_HALLSR_DATA);
+bool shifter_enable = true;
 
 uint64_t halls;
 uint32_t framebuffer[WS2812_NUM_PIXELS];
@@ -53,7 +55,7 @@ void loop(){
         gpio_put(LED_PIN, led = !led);
         nextLed = make_timeout_time_ms(ledPeriod);
     }
-    if(hall_shifter.service()) {
+    if(shifter_enable && hall_shifter.service()) {
         uint64_t shifter_last = hall_shifter.get_last();
         uint64_t new_halls = 0;
         for(int barrette = 0; barrette < num_hall_barrettes; barrette++) {
@@ -111,6 +113,7 @@ void fraise_receivechars(const char *data, uint8_t len){
                 if(!decode_uint8(data, len, x)) return;
                 new_halls += ((uint64_t)x) << ((7 - i) * 8);
             }
+            halls = new_halls;
             fraise_printf("H%016llX\n", new_halls);
         }
         break;
@@ -120,9 +123,13 @@ void fraise_receivechars(const char *data, uint8_t len){
             if(!decode_uint8(data, len, dest_id)) return;
             char buffer[128];
             int buflen = 0;
-            buflen = sprintf(buffer, "H%02X%016llX\n", FRAISE_ID, halls);
+            buflen = sprintf(buffer, "B%02XH%016llX\n", FRAISE_ID, halls);
             fraise_main_bus()->send_to(dest_id, buffer, buflen);
         }
+        break;
+    case 'S': // shifter enable
+        shifter_enable = (*data != '0');
+        break;
     }
 }
 
