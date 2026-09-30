@@ -9,6 +9,7 @@
 #include "hardware/clocks.h"
 #include "fraise.hpp"
 #include <math.h>
+#include <algorithm>
 
 class Ilotopont3 : public MotorControl {
 private:
@@ -18,12 +19,15 @@ private:
     float temperature_C = 0;
     float current_mA = 0;
 
-    int adc_period_ms = 2;
-    float adc_filter = 0.1;
-    absolute_time_t adc_timeout;
+    const int update_period_ms = 2;
+    absolute_time_t update_timeout;
 
-    float speed_consign = 0.0;
+    const float adc_filter_hz = 4.0;
+    const float adc_filter = adc_filter_hz * 6.28 * update_period_ms / 1000.0;
+
+    float speed_consign = 0.0; // [-1.0 ; 1.0]
     float speed_real = 0.0;
+    const int speed_fullrange_time_ms = 1000; // 1 sec for 0->fullrange
 
     int deadtime_steps = 12;
 
@@ -55,7 +59,7 @@ private:
         pwm_set_both_levels(slice_num, 0, 0);
         pwm_set_enabled(slice_num, true);
     }
-    void do_adc() {
+    void adc_service() {
         adc_select_input(pin_temp - 26);
         float temp = adc_read() * 1.0;
         temperature_C += (temp - temperature_C) * adc_filter;
@@ -63,11 +67,6 @@ private:
         adc_select_input(pin_current - 26);
         float cur = adc_read() * 1.0;
         current_mA += (cur - current_mA) * adc_filter;
-    }
-    void adc_service() {
-        if(!time_reached(adc_timeout)) return;
-        adc_timeout = make_timeout_time_ms(adc_period_ms);
-        do_adc();
     }
     void update_pwm() {
         if(!valid) return;
@@ -96,11 +95,19 @@ public:
         adc_gpio_init(pin_current);
     }
     void service() override {
+        if(!time_reached(update_timeout)) return;
+        update_timeout = make_timeout_time_ms(update_period_ms);
         adc_service();
+        float delta_speed = speed_consign - speed_real;
+        float max_delta = update_period_ms / (float)speed_fullrange_time_ms;
+        if(abs(delta_speed) >= max_delta) {
+            delta_speed = copysign(max_delta, delta_speed);
+        }
+        speed_real += delta_speed;
         update_pwm();
     }
     void set_speed(float speed) override {
-        speed_consign = speed_real = speed;
+        speed_consign = std::clamp(speed, -1.0f, 1.0f);
     }
     int get_temperature_C() override {
         return (int)temperature_C;

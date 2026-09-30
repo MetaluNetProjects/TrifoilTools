@@ -6,6 +6,7 @@
 #include "fraise_bus.hpp"
 #include "ilotopont3.hpp"
 #include "barrette.hpp"
+#include "control_logic.hpp"
 #include "pico/stdlib.h"
 
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
@@ -21,7 +22,10 @@ const uint PIN_MOT_CURRENT = 27;
 Ilotopont3 ilotopont(PIN_MOT_AL, PIN_MOT_AH, PIN_MOT_BL, PIN_MOT_BH, PIN_MOT_TEMP, PIN_MOT_CURRENT);
 MotorControl &motor = ilotopont;
 
-Barrette<10, 36> barrette;
+const int barrette_nb_pixels = 36;
+Barrette<barrette_nb_pixels> barrette(10);
+
+TrifoilLogic<barrette_nb_pixels> controller(barrette, motor);
 
 void setup() {
     ilotopont.set_deadtime_ns(200);
@@ -35,6 +39,7 @@ void loop(){
         gpio_put(LED_PIN, led = !led);
         nextLed = make_timeout_time_ms(ledPeriod);
     }
+    controller.service();
     motor.service();
     barrette.service();
 }
