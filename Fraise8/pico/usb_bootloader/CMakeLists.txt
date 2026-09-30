@@ -30,4 +30,5 @@ endif()
 
 target_link_options(bootloader PUBLIC "-L${ld_scripts_path}")
 pico_set_linker_script(bootloader ${ld_scripts_path}/master_bootloader.ld)
+target_compile_definitions(bootloader PUBLIC FRAISE_ID=${FRAISE_ID})
 

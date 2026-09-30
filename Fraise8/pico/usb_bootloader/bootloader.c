@@ -259,7 +259,7 @@ int main() {
 
     stdio_init_all();
     eeprom_setup();
-    piedID = eeprom_get_id();
+    piedID = FRAISE_ID;//eeprom_get_id();
 
     /*if(piedID == 255) { // piedID isn't initialized, default to ID 1
         eeprom_set_id(piedID = 1);
