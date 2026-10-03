@@ -26,6 +26,7 @@ FraiseBus::FraiseBus(FraiseCom *com, int id):
 #define ishex(x) ((x >= '0'&& x <='9') || (x >= 'A' && x <= 'F'))
 
 bool FraiseBus::process_command(char *data) {
+    //printf("l pc %s\n", data);
     int len = strlen(data);
     if(data[0] == '#') { // system
         switch(data[1]) {
@@ -92,6 +93,7 @@ bool FraiseBus::process_command(char *data) {
 }
 
 void FraiseBus::send_to(int dest_id, const char *data, int len) {
+    //printf("l send_to %d %.*s %d\n", dest_id, len , data, len);
     if(len >= 128) return;
     if(dest_id > FRAISE_ID_MAX) return;
 
@@ -112,6 +114,10 @@ void FraiseBus::send_to(int dest_id, const char *data, int len) {
     while(len--) putc_sum(*p++);
     buffer[buflen++] = (-checksum) & 127;
     com->send(buffer, buflen);
+}
+
+void FraiseBus::queue_send_to(int dest_id, const char *data, int len) {
+    send_queue.queue_message(dest_id, data, len);
 }
 
 void FraiseBus::poll(int id) {
@@ -141,6 +147,7 @@ void FraiseBus::send_message() {
     char buffer[128];
     int len = messages_queue.unqueue_message(buffer);
     if(len > 0) {
+        buffer[len] = 0;
         send_to(-1, buffer, len);
     } else {
         char zero = 0;
@@ -255,7 +262,7 @@ void FraiseBus::service(bool enable_send) {
             if(rcv_len > 0) {
                 send_to(-1, rcv_buffer, rcv_len);
                 boot_status.wait_ack = true;
-                boot_status.timeout = make_timeout_time_ms(100);
+                boot_status.timeout = make_timeout_time_ms(50);
             } else boot_status.timeout = at_the_end_of_time;
         } else if(time_reached(boot_status.timeout)) {
             if(++boot_status.nb_trials > boot_status.max_trials) {

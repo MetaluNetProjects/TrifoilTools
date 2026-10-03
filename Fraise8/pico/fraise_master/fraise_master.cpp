@@ -113,7 +113,7 @@ void stdioTask()
     while((c = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
         if(c == '\n') {
             lineBuf[lineLen] = 0;
-            processLine();
+            if(lineLen != 0) processLine();
             lineLen = 0;
         }
         else if(c == '&') { // inner line break
@@ -174,11 +174,33 @@ dummy_callback(fraise_receivechars_broadcast);
 // ------------------------------
 // virtual fruit stdout emulation
 
-void fraise_printf(const char* fmt, ...) {
+/*void fraise_printf(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     printf("80");
     vprintf(fmt, args);
+}*/
+
+void fraise_putchar(char c) {
+    static char line[256];
+    static unsigned int count = 0;
+    if(c == '\n') {
+        line[count] = 0;
+        bus.queue_message(line, count);
+        printf("80%s\n", line);
+        count = 0;
+        return;
+    }
+    if(count < sizeof(line)) line[count++] = c;
+}
+
+void fraise_printf(const char* fmt, ...) {
+    va_list args;
+    char buf[256];
+    char *p = buf;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    while(*p) fraise_putchar(*p++);
 }
 
 /*__attribute__((weak)) void fraise_master_receivebytes(uint8_t fruit_id, const char *data, uint8_t len) {}

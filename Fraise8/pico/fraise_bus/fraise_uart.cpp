@@ -10,6 +10,7 @@
 #include "fraise.hpp"
 #include "fraise_bus.hpp"
 #include <hardware/uart.h>
+#include "pico/sync.h"
 #include <cstring>
 
 #define FRAISE_UART_BAUDRATE 250000
@@ -58,11 +59,12 @@ FraiseUart::FraiseUart(int txpin, int rxpin, int drvpin, bool drvlevel):
     }
 
     uart_init(uart, FRAISE_UART_BAUDRATE);
-    gpio_set_function(txpin, UART_FUNCSEL_NUM(uart, UART_TX_PIN));
-    gpio_set_function(rxpin, UART_FUNCSEL_NUM(uart, UART_RX_PIN));
+    gpio_set_function(txpin, UART_FUNCSEL_NUM(uart, FRAISE_TX_PIN));
+    gpio_set_function(rxpin, UART_FUNCSEL_NUM(uart, FRAISE_RX_PIN));
     gpio_init(drive_pin);
     gpio_set_dir(drive_pin, GPIO_OUT);
     gpio_put(drive_pin, !drive_level);
+    gpio_pull_up(rxpin);
 }
 
 bool FraiseUart::is_readable() {
@@ -82,26 +84,35 @@ void FraiseUart::putc(char c) {
 }
 
 bool FraiseUart::tx_in_progress() {
-    return (uart_get_hw(uart)->fr & UART_UARTFR_BUSY_BITS);
+    return (uart_get_hw(uart)->fr & UART_UARTFR_BUSY_BITS) || (drive_stop_alarm != 0);
 }
 
 void FraiseUart::set_drive(bool drive) {
     /*if(!drive) {
         while(tx_in_progress()) tight_loop_contents();
     }*/
+    if(drive_stop_alarm) cancel_alarm(drive_stop_alarm);
+    drive_stop_alarm = 0;
     gpio_put(drive_pin, drive_level ? drive : !drive);
 }
 
-static int64_t tx_end_callback(alarm_id_t id, void *user_data) {
+int64_t FraiseUart::tx_end_callback(alarm_id_t id, void *user_data) {
     FraiseUart *uart = (FraiseUart *)user_data;
+    uart->drive_stop_alarm = 0;
     uart->set_drive(false);
     return 0;
 }
 
 void FraiseUart::send(const char *data, uint8_t len) {
+    int drive_us = ((int)len) * ((10 * 1000000) /FRAISE_UART_BAUDRATE) + 4;
+    while(!is_writable()) {}
+    uint32_t status = save_and_disable_interrupts();
     set_drive(true);
-    add_alarm_in_us(((int)len) * ((10 * 1000000) /FRAISE_UART_BAUDRATE), tx_end_callback, this, true);
-    for(int i = 0; i < len; i++) putc(data[i]);
+    drive_stop_alarm = add_alarm_in_us(drive_us, tx_end_callback, this, true);
+    putc(data[0]);
+    restore_interrupts_from_disabled(status);
+    for(int i = 1; i < len; i++) putc(data[i]);
+    //if(len > 2) printf("FraiseUart::send %d %dus\n", len, drive_us);
     //while(tx_in_progress()) tight_loop_contents();
     //set_drive(false);
 }

@@ -22,7 +22,24 @@
 FraiseUart com(FRAISE_TX_PIN, FRAISE_RX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL);
 
 static const char version_string[] = "Ipico 1\n";
-static const uint LED_PIN = PICO_DEFAULT_LED_PIN;
+
+#ifdef PICO_DEFAULT_LED_PIN
+const uint LED_PIN = PICO_DEFAULT_LED_PIN;
+#endif
+
+void led_setup() {
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_put(LED_PIN, 0);
+#endif
+}
+
+void led_set(bool on) {
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(LED_PIN, on);
+#endif
+}
 
 char lineBuf[512];
 int lineLen;
@@ -128,10 +145,10 @@ void fraiseTask() {
     while(com.is_readable()) {
         char c = com.getc();
         if(c & 128) {
-            if( (c & 127) != 0) {
+            if((c & 127) != 0) {
                 //run_app();
             }
-            fraiseResetTimeout();
+            //fraiseResetTimeout();
             lineResetTimeout();
             lineLen = wcount = 0;
         } else {
@@ -230,9 +247,9 @@ int main() {
     sleep_ms(100);
 
 #endif
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_put(LED_PIN, 1);
+
+    led_setup();
+    led_set(true);
     //eeprom_setup();
     //fraise_setup(FRAISE_RX_PIN, FRAISE_TX_PIN, FRAISE_DRV_PIN, FRAISE_DRV_LEVEL);
     fraiseResetTimeout();
@@ -244,12 +261,12 @@ int main() {
 #endif
         fraiseTask();
         if(time_reached(nextLed)) {
-            gpio_put(LED_PIN, led = !led);
+            led_set(led = !led);
             nextLed = make_timeout_time_ms(100);
         }
-#ifndef FRAISE_BLD_DEBUG
+//#ifndef FRAISE_BLD_DEBUG
         if(time_reached(fraiseTimeout) && !isVerified) run_app();
-#endif
+//#endif
     }
 }
 

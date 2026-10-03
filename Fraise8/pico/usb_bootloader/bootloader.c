@@ -250,12 +250,28 @@ void processLine() {
     }
 }
 
-int main() {
-    const uint LED_PIN = PICO_DEFAULT_LED_PIN;
-    bool had_usb = false;
+#ifdef PICO_DEFAULT_LED_PIN
+const uint LED_PIN = PICO_DEFAULT_LED_PIN;
+#endif
+
+void led_setup() {
+#ifdef PICO_DEFAULT_LED_PIN
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_put(LED_PIN, 1);
+    gpio_put(LED_PIN, 0);
+#endif
+}
+
+void led_set(bool on) {
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(LED_PIN, on);
+#endif
+}
+
+int main() {
+    bool had_usb = false;
+    led_setup();
+    led_set(true);
 
     stdio_init_all();
     eeprom_setup();
@@ -266,13 +282,11 @@ int main() {
         eeprom_commit();
     }*/
 
-    gpio_put(LED_PIN, 1);
-
     while(true) {
         int c = getchar_timeout_us(100000);
         if(!had_usb && stdio_usb_connected()) {
             had_usb = true;
-            gpio_put(LED_PIN, 0);
+            led_set(false);
         }
         if(c == PICO_ERROR_TIMEOUT) {
             if((!had_usb) && to_ms_since_boot(get_absolute_time()) > 3000) runapp();
