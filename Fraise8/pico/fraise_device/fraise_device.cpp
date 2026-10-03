@@ -103,9 +103,9 @@ void switch_to_bootloader_if_name_matches(const char *data, uint8_t len)
 
 struct FraiseReceiverDevice: public FraiseReceiver {
     virtual void sent_to(int dest_id, const char *data, int len) override {
-        printf("l sent_to %d: ", dest_id);
+        /*printf("l sent_to %d: ", dest_id);
         for(int i = 0; i < len; i++) printf("%d ", data[i]);
-        printf("\n");
+        printf("\n");*/
         if(dest_id == 0) { // broadcast
             char c = data[0];
             if(c == 'B') fraise_receivechars_broadcast(data + 1, len - 1);
