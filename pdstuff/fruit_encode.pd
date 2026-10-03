@@ -1,0 +1,16 @@
+#N canvas 981 43 371 233 12;
+#X declare -path Fraise8;
+#X obj 47 136 list prepend 0;
+#X obj 160 77 loadbang;
+#X obj 160 127 list fromsymbol;
+#X obj 47 106 fruit/encode 1;
+#X obj 45 17 declare -path Fraise8;
+#X obj 47 73 inlet;
+#X obj 47 166 outlet;
+#X obj 160 102 symbol \$1;
+#X connect 0 0 6 0;
+#X connect 1 0 7 0;
+#X connect 2 0 0 1;
+#X connect 3 0 0 0;
+#X connect 5 0 3 0;
+#X connect 7 0 2 0;

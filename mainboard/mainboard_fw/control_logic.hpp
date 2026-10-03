@@ -15,6 +15,7 @@ protected:
     MotorControl &motor;
     const int update_period_ms = 25;
     absolute_time_t update_timeout;
+    bool enable = true;
 
 public:
     ControlLogic(Barrette<PIXELS> &barrette, MotorControl &motor) : barrette(barrette), motor(motor) {
@@ -23,6 +24,7 @@ public:
     virtual void do_service() = 0;
     virtual void receivechars(const char *data, uint8_t len) {}
     void service() {
+        if(!enable) return;
         if(!time_reached(update_timeout)) return;
         update_timeout = make_timeout_time_ms(update_period_ms);
         do_service();
@@ -40,6 +42,7 @@ template <unsigned PIXELS> class TrifoilLogic : public ControlLogic<PIXELS> {
     using ControlLogic<PIXELS>::barrette;
     using ControlLogic<PIXELS>::motor;
     using ControlLogic<PIXELS>::update_period_ms;
+    using ControlLogic<PIXELS>::enable;
 private:
     enum class Mode {run, edit} mode = Mode::run;
     enum class Button {l1 = 0, l2, reverse, stop, forward, l3, l4, count};
@@ -48,9 +51,27 @@ private:
     enum class MotorState {reverse_full, reverse_slow, stop, forward_slow, forward_full} motor_state = MotorState::stop;
     TrifoilSettings settings;
     bool buttons[buttons_count] = {0};
-    bool prev_buttons[buttons_count] = {0};
     bool lamps_on[4] = {false, false, false, false};
     float lamps_value[4] = {0.0, 0.0, 0.0, 0.0}; // 0.0 -> 1.0
+    const int led_off_level = 5;
+    bool speed_led_flash = false;
+    int speed_led_ms[2] = {500, 250}; // slow / fast
+    absolute_time_t speed_led_timeout = 0;
+
+    bool speed_led_update(bool init = false) {
+        int ms = (motor_state == MotorState::reverse_full || motor_state == MotorState::forward_full) ?
+            speed_led_ms[1] : speed_led_ms[0];
+        if(init) {
+            speed_led_flash = true;
+            speed_led_timeout = make_timeout_time_ms(ms);
+        } else {
+            if(time_reached(speed_led_timeout)) {
+                speed_led_timeout = make_timeout_time_ms(ms);
+                speed_led_flash = !speed_led_flash;
+            }
+        }
+        return speed_led_flash;
+    }
 
     int pixel_to_button(int pixel) {
         int button = pixel / pixels_per_button;
@@ -62,11 +83,13 @@ private:
 
     void update_buttons() {
         uint64_t halls = barrette.get_halls();
+        bool prev_buttons[buttons_count] = {0};
         for(unsigned  i = 0; i < buttons_count; i++) {
+            prev_buttons[i] = buttons[i];
             buttons[i] = false;
         }
         for(unsigned  i = 0; i < PIXELS; i++) {
-            bool hall = (halls & (1 << i)) != 0;
+            bool hall = (halls & (uint64_t)(1LL << i)) != 0;
             if(!hall) continue;
             int button = pixel_to_button(i);
             if(button == -1) continue; // is no button
@@ -92,8 +115,24 @@ private:
     }
 
     void set_lamp_pixel_led(int pixel, int lamp) {
-        uint8_t v = (int)(lamps_value[lamp] * 255.0);
-        barrette.set_led(pixel, v, v, 0); // yellow
+        uint8_t r = (int)(lamps_value[lamp] * (255 - led_off_level) + led_off_level);
+        uint8_t g = (int)(lamps_value[lamp] * (255 - led_off_level) + led_off_level);
+        barrette.set_led(pixel, r, g, 0); // yellow
+    }
+
+    void set_motor_pixel_led(Button button, int pixel) {
+        switch(button) {
+        case Button::reverse:
+            if(motor_state == MotorState::reverse_full || motor_state == MotorState::reverse_slow) {
+                barrette.set_led(pixel, 0, speed_led_update() * (255 - led_off_level) + led_off_level, 0);
+            } else barrette.set_led(pixel, 0, led_off_level, 0);
+            break;
+        case Button::forward:
+            if(motor_state == MotorState::forward_full || motor_state == MotorState::forward_slow) {
+                barrette.set_led(pixel, 0, speed_led_update() * (255 - led_off_level) + led_off_level, 0);
+            } else barrette.set_led(pixel, 0, led_off_level, 0);
+            break;
+        }
     }
 
     void update_run() {
@@ -104,15 +143,43 @@ private:
         }
         for(unsigned  i = 0; i < PIXELS; i++) {
             int button = pixel_to_button(i);
-            if(button == -1) barrette.set_led(i, 0);
+            if(button == -1) {
+                barrette.set_led(i, 0);
+                continue;
+            }
             switch((Button)button) {
             case Button::l1: set_lamp_pixel_led(i, 0); break;
             case Button::l2: set_lamp_pixel_led(i, 1); break;
             case Button::l3: set_lamp_pixel_led(i, 2); break;
             case Button::l4: set_lamp_pixel_led(i, 3); break;
+            case Button::reverse: set_motor_pixel_led((Button)button, i); break;
+            case Button::forward: set_motor_pixel_led((Button)button, i); break;
+            case Button::stop: barrette.set_led(i, motor_state == MotorState::stop ? 255 : led_off_level, 0, 0); break;
             default: ;
             }
         }
+    }
+
+    void set_motor_state(MotorState state) {
+        motor_state = state;
+        switch(motor_state) {
+        case MotorState::stop:
+            motor.set_speed(0.0);
+            break;
+        case MotorState::reverse_full:
+            motor.set_speed(settings.motor_speed[0]);
+            break;
+        case MotorState::reverse_slow:
+            motor.set_speed(settings.motor_speed[1]);
+            break;
+        case MotorState::forward_slow:
+            motor.set_speed(settings.motor_speed[2]);
+            break;
+        case MotorState::forward_full:
+            motor.set_speed(settings.motor_speed[3]);
+            break;
+        }
+        speed_led_update(true);
     }
 
     void button_changed_run(Button button, bool value) {
@@ -121,6 +188,17 @@ private:
         case Button::l2: lamps_on[1] ^= true; break;
         case Button::l3: lamps_on[2] ^= true; break;
         case Button::l4: lamps_on[3] ^= true; break;
+        case Button::stop: 
+            set_motor_state(MotorState::stop);
+            break;
+        case Button::forward: 
+            if(motor_state == MotorState::forward_slow) set_motor_state(MotorState::forward_full);
+            else set_motor_state(MotorState::forward_slow);
+            break;
+        case Button::reverse: 
+            if(motor_state == MotorState::reverse_slow) set_motor_state(MotorState::reverse_full);
+            else set_motor_state(MotorState::reverse_slow);
+            break;
         default: ;
         }
     }
@@ -144,6 +222,26 @@ public:
         case Mode::edit:
             update_edit();
             break;
+        }
+    }
+    void receivechars(const char *data, uint8_t len) override {
+        char command = data[0];
+        len -= 1; data += 1;
+        switch(command) {
+        case 'D': { // debug 
+                uint64_t halls = barrette.get_halls();
+                fraise_printf("H%016llX\n", halls);
+                fraise_printf("bits ");
+                for(unsigned  i = 0; i < PIXELS; i++) {
+                    //int button = pixel_to_button(i);
+                    if((halls & (1LL << i)) != 0) fraise_printf("1 ");
+                    else fraise_printf("0 ");
+                }
+                fraise_printf("\n");
+            }
+            break;
+        case 'e': // enable
+            enable = data[0] != '0';
         }
     }
 };

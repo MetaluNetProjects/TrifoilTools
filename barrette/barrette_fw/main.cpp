@@ -11,12 +11,18 @@
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 int ledPeriod = 250;
 
+#if 0
 const uint PIN_HALLSR_SH = 0;
 const uint PIN_HALLSR_CK = 1;
 const uint PIN_HALLSR_DATA = 2;
+#else
+const uint PIN_HALLSR_SH = 13;
+const uint PIN_HALLSR_CK = 12;
+const uint PIN_HALLSR_DATA = 11;
+#endif
 
-//const uint PIN_WS2812 = 22;
-const uint PIN_WS2812 = 19;
+const uint PIN_WS2812 = 22;
+//const uint PIN_WS2812 = 19;
 const bool WS2812_IS_RGBW = false;
 const uint WS2812_NUM_PIXELS = 36;
 
@@ -27,8 +33,9 @@ const int bits_per_barrette = 16;
 HallShifter hall_shifter(num_hall_barrettes * bits_per_barrette, PIN_HALLSR_SH, PIN_HALLSR_CK, PIN_HALLSR_DATA);
 bool shifter_enable = true;
 
-uint64_t halls;
-uint32_t framebuffer[WS2812_NUM_PIXELS];
+uint64_t halls = 0;
+uint32_t framebuffer[WS2812_NUM_PIXELS]{0};
+int led_gain = 128;
 
 void pixel_setup() {
     gpio_set_drive_strength(PIN_WS2812, GPIO_DRIVE_STRENGTH_2MA);
@@ -45,6 +52,7 @@ bool pixel_update() {
 
 void setup() {
     pixel_setup();
+    hall_shifter.setup();
 }
 
 void loop(){
@@ -55,22 +63,34 @@ void loop(){
         gpio_put(LED_PIN, led = !led);
         nextLed = make_timeout_time_ms(ledPeriod);
     }
+#if 1
     if(shifter_enable && hall_shifter.service()) {
         uint64_t shifter_last = hall_shifter.get_last();
         uint64_t new_halls = 0;
         for(int barrette = 0; barrette < num_hall_barrettes; barrette++) {
-            if(barrette != 0) {
+            /*if(barrette != 0) {
                 new_halls <<= halls_per_barrette;
             }
-            new_halls += shifter_last & ((1 << halls_per_barrette) - 1);
-            shifter_last >>= bits_per_barrette;
+            //new_halls += (shifter_last) & ((1LL << halls_per_barrette) - 1);
+            int l = (shifter_last >> 4) & 15;
+            int h = (shifter_last >> 8) & 15;
+            new_halls += (l + (h << 4));
+            shifter_last >>= bits_per_barrette;*/
+            uint16_t barrette_reg = ~(shifter_last >> (bits_per_barrette * (num_hall_barrettes - barrette - 1)));
+            uint64_t barrette_halls = 0;
+            //for(int i = 0; i < 8; i++) {
+            //    barrette_halls 
+            barrette_halls = ((barrette_reg >> 8) & 255) + ((barrette_reg & 15) << 8);
+            new_halls += barrette_halls << (halls_per_barrette * barrette);
         }
+        //new_halls = shifter_last;
         if(halls != new_halls) {
             halls = new_halls;
             fraise_printf("H%016llX\n", halls);
         }
     }
     pixel_update();
+#endif
 }
 
 bool decode_uint8(const char *& data, uint8_t &len, uint8_t &res) {
@@ -78,6 +98,10 @@ bool decode_uint8(const char *& data, uint8_t &len, uint8_t &res) {
     res = gethexbyte(data);
     len -= 2; data += 2;
     return true;
+}
+
+inline uint8_t apply_led_gain(uint8_t c) {
+    return (c * led_gain) > 255 ? (c * led_gain) / 255 : c != 0;
 }
 
 void fraise_receivechars(const char *data, uint8_t len){
@@ -98,6 +122,9 @@ void fraise_receivechars(const char *data, uint8_t len){
                 if(!decode_uint8(data, len, r)) return;
                 if(!decode_uint8(data, len, g)) return;
                 if(!decode_uint8(data, len, b)) return;
+                r = apply_led_gain(r);
+                g = apply_led_gain(g);
+                b = apply_led_gain(b);
                 framebuffer[num_led] = urgb_u32(r, g, b);
                 //fraise_printf("led[%d]=%d %d %d\n", num_led, r, g, b);
                 num_led++;
@@ -130,6 +157,12 @@ void fraise_receivechars(const char *data, uint8_t len){
     case 'S': // shifter enable
         shifter_enable = (*data != '0');
         break;
+    case 'g': // led gain
+        {
+            uint8_t new_gain;
+            if(!decode_uint8(data, len, new_gain)) return;
+            led_gain = new_gain;
+        }
     }
 }
 

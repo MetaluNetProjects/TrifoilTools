@@ -14,10 +14,13 @@ private:
     int pin_sh;
     int pin_ck;
     int pin_data;
-    absolute_time_t next_bit_time;
+    absolute_time_t next_bit_time = 0;
     const int bitrate = 10000;
 public:
     HallShifter(int count, int sh, int ck, int data): total_count(count), pin_sh(sh), pin_ck(ck), pin_data(data) {
+    }
+
+    void setup() {
         gpio_init(pin_sh);
         gpio_set_dir(pin_sh, GPIO_OUT);
         gpio_put(pin_sh, false);
@@ -28,6 +31,7 @@ public:
         gpio_set_dir(pin_data, GPIO_IN);
         gpio_pull_up(pin_data);
     }
+
     bool service() {
         if(!time_reached(next_bit_time)) return false;
         next_bit_time = make_timeout_time_us(1e6 / bitrate);
@@ -51,6 +55,7 @@ public:
         }
         return false;
     }
+
     uint64_t get_last() {
         return last_register;
     }

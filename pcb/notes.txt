@@ -1,0 +1,13 @@
+### Premier batch 1er oct 26
+
+todo:
+## BarretteMB 1.0
+- RS485 : ajouter pullup sur A, pulldown sur B
+- alimenter les leds en 12V après diode protection polarité
+remarque : toutes led full -> 450mA
+
+## BarretteHall
+rajouter pullup(ou down) sur SHIFT_IN
+
+## Ilotopont
+- agrandir trous condensateur 4700uF

@@ -1,4 +1,4 @@
-#N canvas 261 301 1247 486 12;
+#N canvas 599 306 1247 565 12;
 #X obj 28 347 fruit/receive barrette1;
 #X obj 28 301 fruit/send barrette1;
 #X msg 165 275 EHello;
@@ -46,7 +46,18 @@
 #X text 1118 193 pixels;
 #X floatatom 786 18 5 0 255 0 - - - 0;
 #X msg 780 55 0 \$1 0 0 0 \$1 0 0 0 \$1 \$1 0 0 0 \$1 0 0 0 \$1 \$1 0 0 0 \$1 0 0 0 \$1 \$1 0 0 0 \$1 0 0 0 \$1 \$1 0 0 0 \$1 0 0 0 \$1;
+#X obj 436 329 fruit_encode g;
+#X text 486 311 led_gain;
+#X obj 439 286 hsl 170 20 0 255 0 0 empty empty empty -2 -10 0 12 #fcfcfc #000000 #000000 0 1;
+#X floatatom 390 310 5 0 0 0 - - - 0;
+#X obj 18 440 list fromsymbol;
+#X obj 18 409 symbol;
+#X obj 18 465 route 72;
+#X listbox 145 490 51 0 0 0 - - - 0;
+#X obj 58 526 s barrette-halls;
+#X obj 18 490 list split 6;
 #X connect 0 0 20 0;
+#X connect 0 0 52 0;
 #X connect 2 0 1 1;
 #X connect 3 0 10 0;
 #X connect 4 0 3 0;
@@ -85,3 +96,11 @@
 #X connect 43 0 40 0;
 #X connect 45 0 46 0;
 #X connect 46 0 41 0;
+#X connect 47 0 1 0;
+#X connect 49 0 47 0;
+#X connect 49 0 50 0;
+#X connect 51 0 53 0;
+#X connect 52 0 51 0;
+#X connect 53 0 56 0;
+#X connect 56 1 54 0;
+#X connect 56 1 55 0;

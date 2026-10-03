@@ -9,12 +9,12 @@
 
 template <unsigned PIXELS> class Barrette {
 private:
-    uint64_t halls;
-    uint32_t framebuffer[PIXELS];
-    uint32_t print_framebuffer[PIXELS];
+    uint64_t halls = 0;
+    uint32_t framebuffer[PIXELS]{0};
+    uint32_t print_framebuffer[PIXELS]{0};
     bool querying = false;
     bool print_leds = true;
-    int auto_query_period_ms = 0; // disable if 0
+    int auto_query_period_ms = 25; // disable if 0
     absolute_time_t query_nexttime = 0;
     absolute_time_t query_timeout = at_the_end_of_time;
     absolute_time_t query_last_time;
@@ -38,8 +38,8 @@ public:
 
         if((!querying) && (auto_query_period_ms > 0) && time_reached(query_nexttime)) {
             query_nexttime = make_timeout_time_ms(auto_query_period_ms);
-            query_halls();
             send_leds();
+            query_halls();
             //fraise_printf("querying...\n");
         }
     }
@@ -47,7 +47,7 @@ public:
     void query_halls() {
         char buffer[4];
         snprintf(buffer, 4, "h%02X", FRAISE_ID);
-        fraise_main_bus()->send_to(ID, buffer, 3);
+        fraise_main_bus()->queue_send_to(ID, buffer, 3);
         querying = true;
         query_timeout = make_timeout_time_ms(QUERY_TIMEOUT_MS);
     }
@@ -102,7 +102,7 @@ public:
                 encode_uint8(buffer, index, framebuffer[nled] >> 0);
             }
             buffer[index] = 0;
-            fraise_main_bus()->send_to(ID, buffer, index);
+            fraise_main_bus()->queue_send_to(ID, buffer, index);
             //fraise_printf("%s\n", buffer);
         }
         if(print_leds) do_print_leds();
@@ -121,7 +121,20 @@ public:
                     query_last_time = get_absolute_time();
                     query_timeout = at_the_end_of_time;
                     querying = false;
-                    fraise_printf("barrette halls %d %016llX\n", ID, new_halls);
+                    fraise_printf("barrette %d H%016llX\n", ID, new_halls);
+                }
+            }
+            break;
+        case 'h': // send fake halls to barrette
+            {
+                uint64_t new_halls;
+                int ret = sscanf(data, "%016llX", &new_halls);
+                if(ret == 1) {
+                    char buffer[127];
+                    sprintf(buffer, "H%s", data);
+                    fraise_main_bus()->send_to(ID, buffer, len + 1);
+                    //fraise_main_bus()->send_to(ID, buffer, index);
+                    fraise_printf("barrette send halls %d %s\n", ID, buffer);
                 }
             }
             break;
@@ -154,7 +167,8 @@ public:
                     if(!decode_uint8(data, len, r)) return;
                     if(!decode_uint8(data, len, g)) return;
                     if(!decode_uint8(data, len, b)) return;
-                    framebuffer[num_led] = (r << 16) + (g << 8) + b;
+                    //framebuffer[num_led] = (r << 16) + (g << 8) + b;
+                    set_led(num_led, r, g, b);
                     //fraise_printf("led[%d]=%d %d %d\n", num_led, r, g, b);
                     num_led++;
                 }
