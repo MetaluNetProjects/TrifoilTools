@@ -5,20 +5,22 @@
 #pragma once
 #include "motorcontrol.hpp"
 #include "barrette.hpp"
+#include "lamp.hpp"
 #include "fraise.hpp"
 #include <math.h>
 #include <algorithm>
 
-template <unsigned PIXELS> class ControlLogic {
+template <unsigned PIXELS, unsigned LAMPS> class ControlLogic {
 protected:
     Barrette<PIXELS> &barrette;
     MotorControl &motor;
+    Lamp (&lamps)[LAMPS];
     const int update_period_ms = 25;
     absolute_time_t update_timeout;
     bool enable = true;
 
 public:
-    ControlLogic(Barrette<PIXELS> &barrette, MotorControl &motor) : barrette(barrette), motor(motor) {
+    ControlLogic(Barrette<PIXELS> &barrette, MotorControl &motor, Lamp (&lamps)[LAMPS]) : barrette(barrette), motor(motor), lamps(lamps) {
     }
     virtual ~ControlLogic() {}
     virtual void do_service() = 0;
@@ -38,11 +40,14 @@ struct TrifoilSettings {
     float motor_speed[4] = {0.5, 0.25, 0.5, 1.0}; // reverse_full, reverse_slow, forward_slow, forward_full
 };
 
-template <unsigned PIXELS> class TrifoilLogic : public ControlLogic<PIXELS> {
-    using ControlLogic<PIXELS>::barrette;
-    using ControlLogic<PIXELS>::motor;
-    using ControlLogic<PIXELS>::update_period_ms;
-    using ControlLogic<PIXELS>::enable;
+template <unsigned PIXELS, unsigned LAMPS> 
+class TrifoilLogic : public ControlLogic<PIXELS, LAMPS> {
+    using CL = ControlLogic<PIXELS, LAMPS>;
+    using CL::barrette;
+    using CL::motor;
+    using CL::lamps;
+    using CL::update_period_ms;
+    using CL::enable;
 private:
     enum class Mode {run, edit} mode = Mode::run;
     enum class Button {l1 = 0, l2, reverse, stop, forward, l3, l4, count};
@@ -132,6 +137,7 @@ private:
                 barrette.set_led(pixel, 0, speed_led_update() * (255 - led_off_level) + led_off_level, 0);
             } else barrette.set_led(pixel, 0, led_off_level, 0);
             break;
+        default: ;
         }
     }
 
@@ -140,6 +146,7 @@ private:
             float dv = update_period_ms;
             dv /= lamps_on[i] ? settings.lamps_uptime_ms[i] : -settings.lamps_downtime_ms[i];
             lamps_value[i] = std::clamp(lamps_value[i] + dv, 0.0f, 1.0f);
+            lamps[i].set(lamps_value[i] * settings.lamps_maxvalue[i]);
         }
         for(unsigned  i = 0; i < PIXELS; i++) {
             int button = pixel_to_button(i);
@@ -210,7 +217,7 @@ private:
     }
 
 public:
-    TrifoilLogic(Barrette<PIXELS> &barrette, MotorControl &motor) : ControlLogic<PIXELS>(barrette, motor) {
+    TrifoilLogic(Barrette<PIXELS> &barrette, MotorControl &motor, Lamp (&lamps)[LAMPS]) : ControlLogic<PIXELS, LAMPS>(barrette, motor, lamps) {
     }
 
     void do_service() override {
