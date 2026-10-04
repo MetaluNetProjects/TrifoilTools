@@ -44,6 +44,7 @@ else()
 endif()
 message("ld_scripts_path: ${ld_scripts_path}")
 
+target_link_options(${projName} PUBLIC "-L${projDir}")
 target_link_options(${projName} PUBLIC "-L${ld_scripts_path}")
 
 if(${is_pied_fruit} EQUAL 1)
