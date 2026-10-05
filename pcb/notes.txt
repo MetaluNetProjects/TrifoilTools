@@ -11,3 +11,8 @@ rajouter pullup(ou down) sur SHIFT_IN
 
 ## Ilotopont
 - agrandir trous condensateur 4700uF
+- agrandir trous de puissance à 6mm
+
+## Lampes
+- agrandir trous de puissance à 6mm
+

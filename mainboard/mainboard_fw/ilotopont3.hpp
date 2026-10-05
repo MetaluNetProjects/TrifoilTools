@@ -61,11 +61,11 @@ private:
     }
     void adc_service() {
         adc_select_input(pin_temp - 26);
-        float temp = adc_read() * 1.0;
+        float temp = 100.0 * (adc_read() * 3.3 / 4096.0 - 0.5); // MCP9700: 10mV/°C, 500mV @ 0°C
         temperature_C += (temp - temperature_C) * adc_filter;
 
         adc_select_input(pin_current - 26);
-        float cur = adc_read() * 1.0;
+        float cur = (adc_read() * 3.3 / 4096.0 - 0.33) * (1000000 / 17.6); // ACS781KLRTR-150U: 17.6mV/A, Vcc/10 @ 0A
         current_mA += (cur - current_mA) * adc_filter;
     }
     void update_pwm() {

@@ -36,7 +36,7 @@ Barrette<barrette_nb_pixels> barrette(10);
 TrifoilLogic<barrette_nb_pixels, 4> controller(barrette, motor, lamps);
 
 void setup() {
-    motor.set_deadtime_ns(200);
+    motor.set_deadtime_ns(400);
 }
 
 void loop(){
@@ -86,6 +86,13 @@ void fraise_receivechars(const char *data, uint8_t len){
     case 'h': // query barrette Hall
         barrette.query_halls();
         break;
+    case 'l': // lamp
+        {
+            uint8_t n, value;
+            if(!decode_uint8(data, len, n)) return;
+            if(!decode_uint8(data, len, value)) return;
+            if(n < 4) lamps[n].set(value / 255.0);
+        }
     }
 }
 
