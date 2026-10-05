@@ -9,6 +9,7 @@
 #include "barrette.hpp"
 #include "control_logic.hpp"
 #include "pico/stdlib.h"
+#include "settings_partition.hpp"
 
 #ifdef PICO_DEFAULT_LED_PIN
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
@@ -28,12 +29,19 @@ const uint PIN_MOT_CURRENT = 27;
 
 Ilotopont3 motor(PIN_MOT_AL, PIN_MOT_AH, PIN_MOT_BL, PIN_MOT_BH, PIN_MOT_TEMP, PIN_MOT_CURRENT);
 
-Lamp lamps[4]{PIN_LAMP1, PIN_LAMP2, PIN_LAMP3, PIN_LAMP4};
+const int LAMPS_COUNT = 4;
+Lamp lamps[LAMPS_COUNT]{PIN_LAMP1, PIN_LAMP2, PIN_LAMP3, PIN_LAMP4};
 
 const int barrette_nb_pixels = 36;
 Barrette<barrette_nb_pixels> barrette(10);
 
-TrifoilLogic<barrette_nb_pixels, 4> controller(barrette, motor, lamps);
+using Logic = TrifoilLogic<barrette_nb_pixels, LAMPS_COUNT>;
+
+extern const char __settings_start__;
+const char *setting_partition_start = &__settings_start__;
+SettingsPartition<Logic::settings_slot_size> trifoil_settings(setting_partition_start);
+
+Logic controller(barrette, motor, lamps, trifoil_settings);
 
 void setup() {
     motor.set_deadtime_ns(400);
@@ -91,7 +99,7 @@ void fraise_receivechars(const char *data, uint8_t len){
             uint8_t n, value;
             if(!decode_uint8(data, len, n)) return;
             if(!decode_uint8(data, len, value)) return;
-            if(n < 4) lamps[n].set(value / 255.0);
+            if(n < LAMPS_COUNT) lamps[n].set(value / 255.0);
         }
     }
 }

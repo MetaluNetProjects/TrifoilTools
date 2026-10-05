@@ -10,6 +10,7 @@
 #include <math.h>
 #include <algorithm>
 #include <vector>
+#include "settings_partition.hpp"
 
 template <unsigned PIXELS, unsigned LAMPS> class ControlLogic {
 protected:
@@ -86,12 +87,17 @@ public:
 
 template <unsigned PIXELS, unsigned LAMPS> 
 class TrifoilLogic : public ControlLogic<PIXELS, LAMPS> {
+public:
+    static constexpr int settings_slot_size = 24;
+    static_assert(settings_slot_size >= sizeof(TrifoilSettings));
+
     using CL = ControlLogic<PIXELS, LAMPS>;
     using CL::barrette;
     using CL::motor;
     using CL::lamps;
     using CL::update_period_ms;
     using CL::enable;
+
 private:
     enum class Button {l1 = 0, l2, reverse, stop, forward, l3, l4, count};
     static const int buttons_count = (int)Button::count;
@@ -107,6 +113,7 @@ private:
     Button edited_button = Button::stop;
     int edit_step = 0;
     uint8_t *edited_value = &settings.lamps_maxvalue[0];
+    SettingsPartition<settings_slot_size> &settings_partition;
 
     bool is_editing() {
         return edited_button != Button::stop;
@@ -332,8 +339,12 @@ private:
     }
 
 public:
-    TrifoilLogic(Barrette<PIXELS> &barrette, MotorControl &motor, Lamp (&lamps)[LAMPS]) : ControlLogic<PIXELS, LAMPS>(barrette, motor, lamps) {
+
+    TrifoilLogic(Barrette<PIXELS> &barrette, MotorControl &motor, Lamp (&lamps)[LAMPS], SettingsPartition<settings_slot_size> &settings_partition) :
+        ControlLogic<PIXELS, LAMPS>(barrette, motor, lamps), settings_partition(settings_partition)
+    {
     }
+
 
     void do_service() override {
         update_buttons();

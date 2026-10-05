@@ -7,4 +7,8 @@ if(${USB_DEBUG})
 endif()
 
 add_subdirectory(../../../modules modules)
-target_link_libraries(${CMAKE_PROJECT_NAME} hardware_adc hardware_pwm)
+target_link_libraries(${CMAKE_PROJECT_NAME}
+    hardware_adc
+    hardware_pwm
+    settings_partition
+)
