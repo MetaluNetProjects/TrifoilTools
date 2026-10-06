@@ -101,6 +101,40 @@ void fraise_receivechars(const char *data, uint8_t len){
             if(!decode_uint8(data, len, value)) return;
             if(n < LAMPS_COUNT) lamps[n].set(value / 255.0);
         }
+        break;
+    case 'S': // settings_partition tests
+        {
+            char subcommand = data[0];
+            len -= 1; data += 1;
+            uint8_t buffer[Logic::settings_slot_size];
+            if(subcommand == 'W') {
+                
+                if(len < (int)(2 * sizeof(buffer))) return;
+                for(unsigned  i = 0; i < sizeof(buffer); i++) {
+                    if(!decode_uint8(data, len, buffer[i])) return;
+                }
+                trifoil_settings.write((char*)buffer, sizeof(buffer));
+            } else if(subcommand == 'R') {
+                bool res = trifoil_settings.read((char*)buffer, sizeof(buffer));
+                fraise_printf("settings ");
+                if(res) for(unsigned i = 0; i < sizeof(buffer); i++) {
+                    fraise_printf("%d ", buffer[i]);
+                } else {
+                    fraise_printf("empty");
+                }
+                fraise_printf("\n");
+            } else if (subcommand == 'E') {
+                trifoil_settings.erase_all();
+            } else if (subcommand == 'r') {
+                uint8_t index;
+                if(!decode_uint8(data, len, index)) return;
+                uint8_t b = trifoil_settings.read_raw(index);
+                fraise_printf("settings raw %d %d\n", index, b);
+            } else if (subcommand == 'd') {
+                trifoil_settings.set_debug(data[0] != '0');
+            }
+        }
+        break;
     }
 }
 

@@ -12,3 +12,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     hardware_pwm
     settings_partition
 )
+
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+    PICO_FLASH_ASSUME_CORE1_SAFE=1)
+
