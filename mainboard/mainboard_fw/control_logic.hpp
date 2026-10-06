@@ -36,7 +36,7 @@ public:
 };
 
 struct TrifoilSettings {
-    static constexpr int NUM_STEPS = 6;
+    static constexpr uint8_t NUM_STEPS = 6;
     static constexpr float lamp_value_tab[NUM_STEPS] = {0.1, 0.2, 0.35, 0.5, 0.75, 1.0};
     static constexpr int lamp_time_ms_tab[NUM_STEPS] = {5000, 2500, 1200, 750, 300, 0};
 
@@ -44,6 +44,7 @@ struct TrifoilSettings {
     uint8_t lamps_upspeed[4] = {1, 1, 1, 1};
     uint8_t lamps_downspeed[4] = {2, 2, 2, 2};
     uint8_t motor_speed[4] = {3, 1, 3, 5}; // reverse_full, reverse_slow, forward_slow, forward_full
+    uint8_t brightness = 128;
 
     float get_lamp_maxvalue(int lamp) {
         return lamp_value_tab[lamps_maxvalue[std::clamp(lamp, 0, 3)]];
@@ -57,6 +58,14 @@ struct TrifoilSettings {
     float get_motor_speed(int num_speed) {
         // 0.166 0.333 0.5 0.666 0.833 1
         return (1.0 + motor_speed[std::clamp(num_speed, 0, 3)]) / (float)NUM_STEPS;
+    }
+    void validate() {
+        for(int i = 0; i < 4; i++) {
+            lamps_maxvalue[i] = std::clamp<uint8_t>(lamps_maxvalue[i], 0, NUM_STEPS - 1);
+            lamps_upspeed[i] = std::clamp<uint8_t>(lamps_upspeed[i], 0, NUM_STEPS - 1);
+            lamps_downspeed[i] = std::clamp<uint8_t>(lamps_downspeed[i], 0, NUM_STEPS - 1);
+            motor_speed[i] = std::clamp<uint8_t>(motor_speed[i], 0, NUM_STEPS - 1);
+        }
     }
 };
 
@@ -105,6 +114,7 @@ private:
     enum class MotorState {reverse_full, reverse_slow, stop, forward_slow, forward_full} motor_state = MotorState::stop;
     TrifoilSettings settings;
     bool buttons[buttons_count] = {0};
+    bool status_button = false;
     bool lamps_on[4] = {false, false, false, false};
     float lamps_value[4] = {0.0, 0.0, 0.0, 0.0}; // 0.0 -> 1.0
     const int led_off_level = 5;
@@ -150,18 +160,45 @@ private:
             prev_buttons[i] = buttons[i];
             buttons[i] = false;
         }
-        for(unsigned  i = 0; i < PIXELS; i++) {
+        for(unsigned i = 0; i < PIXELS; i++) {
             bool hall = (halls & (uint64_t)(1LL << i)) != 0;
             if(!hall) continue;
             int button = pixel_to_button(i);
             if(button == -1) continue; // is no button
             buttons[button] = true;
         }
-        for(int i = 0; i < buttons_count; i++) {
+        bool prev_status_button = status_button;
+        status_button = (halls & (uint64_t)(1LL << (PIXELS - 1))) != 0;
+        if(status_button != prev_status_button) {
+            // on release, save brightness if changed:
+            if(!status_button) save_settings_if_changed();
+        }
+        if(!status_button) for(int i = 0; i < buttons_count; i++) {
             if(prev_buttons[i] != buttons[i]) {
                 button_changed((Button)i, buttons[i]);
             }
             prev_buttons[i] = buttons[i];
+        } else {
+            unsigned first_hall;
+            for(first_hall = 0; first_hall < PIXELS / 2; first_hall++) {
+                if((halls & (uint64_t)(1LL << first_hall)) != 0) break;
+            }
+            if(first_hall < PIXELS / 2) {
+                settings.brightness = 10 + (first_hall * 245) / (PIXELS / 2 - 1);
+                barrette.set_brightness(settings.brightness);
+            }
+            for(unsigned i = 0; i < PIXELS / 2; i++) {
+                uint8_t val = 255 * (i <= ((settings.brightness - 10) * (PIXELS / 2 - 1)) / 245);
+                if(val == 0) val = led_off_level;
+                barrette.set_led(i, val, val, val);
+            }
+            for(unsigned i = PIXELS / 2; i < PIXELS; i++) {
+                float j = i - (PIXELS / 2);
+                float g = j / (PIXELS / 2.0);
+                float r = std::clamp(1.0f - g, 0.0f, 1.0f);
+                //g = std::clamp(1.1f * g - 0.1, 0.0f, 1.0f);
+                barrette.set_led(i, r * 255, g * 255, 0);
+            }
         }
     }
 
@@ -280,8 +317,9 @@ private:
         for(unsigned  i = 0; i < PIXELS; i++) {
             int button = pixel_to_button(i);
             int sub = pixel_to_subbutton(i, edited_button);
-            if(sub >= 0 && (sub < *edited_value)) {
-                barrette.set_led(i, 255, 255, 255);
+            if(sub >= 0) {
+                uint8_t val = (sub < *edited_value) ? 255 : 1;
+                barrette.set_led(i, val, val, val);
                 continue;
             }
             switch((Button)button) {
@@ -322,11 +360,20 @@ private:
         }
     }
 
+    void save_settings_if_changed() {
+        char prev_settings[sizeof(settings)];
+        settings_partition.read(prev_settings, sizeof(settings));
+        if(memcmp(prev_settings, &settings, sizeof(settings)) != 0) {
+            settings_partition.write((char*)&settings, sizeof(settings));
+        }
+    }
+
     void button_changed_edit(Button button, bool value) {
         if(!value) return;
         if(button == Button::stop) {
             if(edit_step >= (button_to_lamp(edited_button) >= 0 ? 2 : 1)) {
                 edited_button = Button::stop;
+                save_settings_if_changed();
                 return;
             }
             edit_set_button_step(edited_button, edit_step + 1);
@@ -343,15 +390,20 @@ public:
     TrifoilLogic(Barrette<PIXELS> &barrette, MotorControl &motor, Lamp (&lamps)[LAMPS], SettingsPartition<settings_slot_size> &settings_partition) :
         ControlLogic<PIXELS, LAMPS>(barrette, motor, lamps), settings_partition(settings_partition)
     {
+        settings_partition.read((char*)&settings, sizeof(settings));
+        settings.validate();
+        barrette.set_brightness(settings.brightness);
     }
 
 
     void do_service() override {
         update_buttons();
-        if(!is_editing()) {
-            update_run();
-        } else {
-            update_edit();
+        if(!status_button) {
+            if(!is_editing()) {
+                update_run();
+            } else {
+                update_edit();
+            }
         }
     }
 

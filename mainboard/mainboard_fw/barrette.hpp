@@ -20,6 +20,8 @@ private:
     absolute_time_t query_last_time;
     const int QUERY_TIMEOUT_MS = 10;
     unsigned ID;
+    uint8_t brightness = 128;
+
 public:
     Barrette(int id) : ID(id) {}
 
@@ -38,6 +40,7 @@ public:
 
         if((!querying) && (auto_query_period_ms > 0) && time_reached(query_nexttime)) {
             query_nexttime = make_timeout_time_ms(auto_query_period_ms);
+            send_brightness();
             send_leds();
             query_halls();
             //fraise_printf("querying...\n");
@@ -50,6 +53,10 @@ public:
         fraise_main_bus()->queue_send_to(ID, buffer, 3);
         querying = true;
         query_timeout = make_timeout_time_ms(QUERY_TIMEOUT_MS);
+    }
+
+    void set_brightness(uint8_t b) {
+        brightness = b;
     }
 
     void set_led(unsigned  numled, uint32_t color) {
@@ -106,6 +113,12 @@ public:
             //fraise_printf("%s\n", buffer);
         }
         if(print_leds) do_print_leds();
+    }
+
+    void send_brightness() {
+        char buffer[8];
+        snprintf(buffer, 4, "g%02X", brightness);
+        fraise_main_bus()->queue_send_to(ID, buffer, 3);
     }
 
     void receivechars(const char *data, uint8_t len) {
