@@ -35,7 +35,7 @@ endif()
 
 message("is_pied_fruit = ${is_pied_fruit}")
 
-# linking script:
+# processor-specific linking script path:
 
 if(${PICO_PLATFORM} STREQUAL rp2350-arm-s)
     set(ld_scripts_path ${fraise_path}/pico/rp2350)
@@ -44,8 +44,6 @@ else()
 endif()
 message("ld_scripts_path: ${ld_scripts_path}")
 
-target_link_options(${projName} PUBLIC "-L${projDir}")
-target_link_options(${projName} PUBLIC "-L${ld_scripts_path}")
 
 if(${is_pied_fruit} EQUAL 1)
     pico_set_linker_script(${projName} "${ld_scripts_path}/master_app.ld")
@@ -54,6 +52,7 @@ if(${is_pied_fruit} EQUAL 1)
     add_subdirectory(${fraise_path}/pico/usb_bootloader bootloader)
     set(APP_BIN ${CMAKE_CURRENT_BINARY_DIR}/${projName}.bin)
     set(BLD_ELF ${CMAKE_CURRENT_BINARY_DIR}/bootloader/bootloader.elf)
+    pico_set_linker_script(bootloader ${ld_scripts_path}/master_bootloader.ld)
     add_custom_target(usb_bootloader ALL
         DEPENDS ${projName} bootloader
         COMMAND ${CMAKE_OBJCOPY} --update-section .app_bin=${APP_BIN} ${BLD_ELF} usb_bootloader.elf
@@ -65,6 +64,7 @@ else()
     add_subdirectory(${fraise_path}/pico/fraise_bootloader bootloader)
     set(APP_BIN ${CMAKE_CURRENT_BINARY_DIR}/${projName}.bin)
     set(BLD_ELF ${CMAKE_CURRENT_BINARY_DIR}/bootloader/bootloader.elf)
+    pico_set_linker_script(bootloader ${ld_scripts_path}/device_bootloader.ld)
     add_custom_target(fraise_bootloader ALL
         DEPENDS ${projName} bootloader
         COMMAND ${CMAKE_OBJCOPY} --update-section .app_bin=${APP_BIN} ${BLD_ELF} fraise_bootloader.elf
@@ -77,6 +77,19 @@ if(${is_pied_fruit} EQUAL 1)
 else()
 	set(target_file ${projName}.hex)
 endif()
+
+# specify linking script paths for both project and bootloader
+# (project-specific one first to have precedence):
+target_link_options(${projName} PUBLIC "-L${projDir}")
+target_link_options(${projName} PUBLIC "-L${ld_scripts_path}")
+target_link_options(bootloader PUBLIC "-L${projDir}")
+target_link_options(bootloader PUBLIC "-L${ld_scripts_path}")
+
+target_compile_definitions(bootloader PUBLIC FRAISE_RX_PIN=${FRAISE_RX_PIN})
+target_compile_definitions(bootloader PUBLIC FRAISE_TX_PIN=${FRAISE_TX_PIN})
+target_compile_definitions(bootloader PUBLIC FRAISE_DRV_PIN=${FRAISE_DRV_PIN})
+target_compile_definitions(bootloader PUBLIC FRAISE_DRV_LEVEL=${FRAISE_DRV_LEVEL})
+target_compile_definitions(bootloader PUBLIC FRAISE_ID=${FRAISE_ID})
 
 add_custom_command(
 	TARGET ${projName} POST_BUILD

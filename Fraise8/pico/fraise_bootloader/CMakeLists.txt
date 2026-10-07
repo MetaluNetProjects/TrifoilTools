@@ -27,19 +27,6 @@ target_link_libraries(bootloader
 pico_enable_stdio_usb(bootloader 0)
 pico_enable_stdio_uart(bootloader 0)
 
-# linking script:
-
-if(${PICO_PLATFORM} STREQUAL "rp2350-arm-s")
-    set(ld_scripts_path ${fraise_path}/pico/rp2350)
-else()
-    set(ld_scripts_path ${fraise_path}/pico/rp2040)
-endif()
-
-target_link_options(bootloader PUBLIC "-L${ld_scripts_path}")
-pico_set_linker_script(bootloader ${ld_scripts_path}/device_bootloader.ld)
-target_compile_definitions(bootloader PUBLIC FRAISE_RX_PIN=${FRAISE_RX_PIN})
-target_compile_definitions(bootloader PUBLIC FRAISE_TX_PIN=${FRAISE_TX_PIN})
-target_compile_definitions(bootloader PUBLIC FRAISE_DRV_PIN=${FRAISE_DRV_PIN})
-target_compile_definitions(bootloader PUBLIC FRAISE_DRV_LEVEL=${FRAISE_DRV_LEVEL})
-target_compile_definitions(bootloader PUBLIC FRAISE_ID=${FRAISE_ID})
+pico_set_float_implementation(bootloader none)
+pico_set_double_implementation(bootloader none)
 
