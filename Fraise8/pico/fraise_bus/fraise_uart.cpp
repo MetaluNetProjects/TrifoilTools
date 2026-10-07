@@ -98,13 +98,14 @@ void FraiseUart::set_drive(bool drive) {
 
 int64_t FraiseUart::tx_end_callback(alarm_id_t id, void *user_data) {
     FraiseUart *uart = (FraiseUart *)user_data;
+    while(uart_get_hw(uart->uart)->fr & UART_UARTFR_BUSY_BITS) {}
     uart->drive_stop_alarm = 0;
     uart->set_drive(false);
     return 0;
 }
 
 void FraiseUart::send(const char *data, uint8_t len) {
-    int drive_us = ((int)len) * ((10 * 1000000) /FRAISE_UART_BAUDRATE) + 4;
+    int drive_us = ((int)len) * ((10 * 1000000) / FRAISE_UART_BAUDRATE) + 2;
     while(!is_writable()) {}
     uint32_t status = save_and_disable_interrupts();
     set_drive(true);
