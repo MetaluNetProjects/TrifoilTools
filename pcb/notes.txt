@@ -2,6 +2,7 @@
 
 todo:
 ## BarretteMB 1.0
+- supprimer le "SOLDER!"
 - RS485 : ajouter pullup sur A, pulldown sur B
 - alimenter les leds en 12V après diode protection polarité
 remarque : toutes led full -> 450mA

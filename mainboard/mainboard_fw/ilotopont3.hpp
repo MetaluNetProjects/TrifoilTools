@@ -27,7 +27,7 @@ private:
 
     float speed_consign = 0.0; // [-1.0 ; 1.0]
     float speed_real = 0.0;
-    const int speed_fullrange_time_ms = 1000; // 1 sec for 0->fullrange
+    const int speed_fullrange_time_ms = 500; // 0.5 sec for 0->fullrange
 
     int deadtime_steps = 12;
 

@@ -11,7 +11,7 @@
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 int ledPeriod = 250;
 
-#if 0
+#if 1
 const uint PIN_HALLSR_SH = 0;
 const uint PIN_HALLSR_CK = 1;
 const uint PIN_HALLSR_DATA = 2;
