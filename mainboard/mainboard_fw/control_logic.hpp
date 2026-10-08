@@ -9,7 +9,7 @@
 #include "fraise.hpp"
 #include <math.h>
 #include <algorithm>
-#include <vector>
+//#include <vector>
 #include "settings_partition.hpp"
 
 template <unsigned PIXELS, unsigned LAMPS> class ControlLogic {
@@ -73,25 +73,29 @@ template<class T>
 class Sequencer {
 private:
     unsigned count = 0;
-    std::vector<bool> sequence;
+//    std::vector<bool> sequence;
+    const T *sequence = nullptr;//[32];
+    unsigned num_steps = 0;
     absolute_time_t timeout = 0;
     int period_ms = 250;
 public:
-    void init(std::vector<T> seq, int ms) {
+    void init(/*std::vector<T> seq*/const T *seq, unsigned steps, int ms) {
         period_ms = ms;
         sequence = seq;
+        num_steps = steps;
         count = 0;
         timeout = make_timeout_time_ms(period_ms);
     }
     T get() {
+        if(!num_steps) return 0;
         if(time_reached(timeout)) {
             timeout = make_timeout_time_ms(period_ms);
             count++;
-            if(count == sequence.size()) count = 0;
+            if(count == num_steps/*sequence.size()*/) count = 0;
         }
         return sequence[count];
     }
-    Sequencer<T>(std::vector<T> seq = {0}, int ms = 250) : sequence(seq), period_ms(ms) {}
+    //Sequencer<T>(std::vector<T> seq = {0}, int ms = 250) : sequence(seq), period_ms(ms) {}
 };
 
 template <unsigned PIXELS, unsigned LAMPS> 
@@ -119,7 +123,7 @@ private:
     float lamps_value[4] = {0.0, 0.0, 0.0, 0.0}; // 0.0 -> 1.0
     const int led_off_level = 5;
     int speed_led_ms[2] = {500, 250}; // slow / fast
-    Sequencer<bool> led_flasher;
+    Sequencer<char> led_flasher;
     Button edited_button = Button::stop;
     int edit_step = 0;
     uint8_t *edited_value = &settings.lamps_maxvalue[0];
@@ -280,7 +284,8 @@ private:
             ms = speed_led_ms[1];
             break;
         }
-        led_flasher.init({true, false}, ms);
+        static char onoff[] = {1, 0};
+        led_flasher.init(onoff, std::size(onoff), ms);
     }
 
     void button_changed_run(Button button, bool value) {
@@ -337,15 +342,22 @@ private:
     }
 
     void edit_set_button_step(Button button, int step) {
-        static const std::vector<bool> seqs[3]{
+        /*static const std::vector<bool> seqs[3]{
             {true, false, false, false}, 
             {true, false, true, false, false, false},
             {true, false, true, false, true, false, false, false}
+        };*/
+        static const char seqs[3][10] = {
+            {1, 0, 0, 0}, 
+            {1, 0, 1, 0, 0, 0},
+            {1, 0, 1, 0, 1, 0, 0, 0}
         };
+        static const unsigned seqslength[3] = {4, 6, 8};
+
         edited_button = button;
         edit_step = step;
         if(edit_step > 2) edit_step = 2;
-        led_flasher.init(seqs[edit_step], 200);
+        led_flasher.init(seqs[edit_step], seqslength[edit_step], 200);
         int num_lamp = button_to_lamp(button);
         if(num_lamp != -1) { // lamp
             switch(edit_step) {
