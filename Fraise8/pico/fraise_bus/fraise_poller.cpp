@@ -53,3 +53,6 @@ void FraisePoller::reset() {
     }
 }
 
+void FraisePoller::poll_pause_ms(int ms) {
+    timeout = make_timeout_time_ms(ms);
+}

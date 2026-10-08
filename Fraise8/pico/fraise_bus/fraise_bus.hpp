@@ -121,6 +121,7 @@ public:
     void service(FraiseBus *bus);
     void detected(int id, bool is_detected);
     void reset();
+    void poll_pause_ms(int ms);
 };
 
 FraiseBus *fraise_main_bus();
