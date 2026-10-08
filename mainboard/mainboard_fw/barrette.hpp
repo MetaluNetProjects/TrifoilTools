@@ -32,6 +32,12 @@ public:
         return querying;
     }
 
+    void exchange() {
+        send_brightness();
+        send_leds();
+        query_halls();
+    }
+
     void service() {
         if(time_reached(query_timeout)) {
             query_timeout = at_the_end_of_time;
@@ -40,9 +46,10 @@ public:
 
         if((!querying) && (auto_query_period_ms > 0) && time_reached(query_nexttime)) {
             query_nexttime = make_timeout_time_ms(auto_query_period_ms);
-            send_brightness();
+            /*send_brightness();
             send_leds();
-            query_halls();
+            query_halls();*/
+            exchange();
             //fraise_printf("querying...\n");
         }
     }
@@ -168,6 +175,9 @@ public:
             break;
         case 's': // send leds
             send_leds();
+            break;
+        case 'e': // send leds
+            exchange();
             break;
         case 'P': // pixel led
             {

@@ -56,6 +56,7 @@
 #X listbox 145 490 51 0 0 0 - - - 0;
 #X obj 58 526 s barrette-halls;
 #X obj 18 490 list split 6;
+#X obj 28 8 inlet;
 #X connect 0 0 20 0;
 #X connect 0 0 52 0;
 #X connect 2 0 1 1;
@@ -104,3 +105,4 @@
 #X connect 53 0 56 0;
 #X connect 56 1 54 0;
 #X connect 56 1 55 0;
+#X connect 57 0 21 0;
