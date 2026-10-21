@@ -22,7 +22,7 @@
 #X obj 55 198 barrette/0barrette 1;
 #X obj 53 230 mainboard/0mainboard 1 2;
 #X obj 13 341 barrette debugbar;
-#N canvas 731 34 1045 679 barrette-inout 0;
+#N canvas 731 34 1045 679 barrette-inout 1;
 #X obj 45 28 r debugbar-hall-snd;
 #X obj 209 27 table \$0-halls 10;
 #X obj 45 53 unpack f f, f 21;
@@ -115,7 +115,6 @@
 #X connect 37 0 38 0;
 #X connect 38 0 39 0;
 #X connect 39 0 40 0;
-#X connect 40 1 36 0;
 #X connect 41 0 32 0;
 #X connect 41 0 33 0;
 #X connect 43 0 42 0;

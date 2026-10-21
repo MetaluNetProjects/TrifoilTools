@@ -4,16 +4,30 @@ todo:
 ## BarretteMB 1.0
 - supprimer le "SOLDER!"
 - RS485 : ajouter pullup sur A, pulldown sur B
-- alimenter les leds en 12V après diode protection polarité
+- si LED 12V: alimenter les leds en 12V après diode protection polarité
 remarque : toutes led full -> 450mA
+- rajouter pullup(ou down) sur SHIFT_IN
 
 ## BarretteHall
-rajouter pullup(ou down) sur SHIFT_IN
+- rajouter pullup(ou down) sur SHIFT_IN
 
 ## Ilotopont
-- agrandir trous condensateur 4700uF
-- agrandir trous de puissance à 6mm
+OK - agrandir trous condensateur 4700uF
+OK - agrandir trous de puissance à 6mm
+OK - protection regul 12V
+OK - 15KPA17A TVS
 
 ## Lampes
-- agrandir trous de puissance à 6mm
+OK - agrandir trous de puissance à 6mm
+
+
+-----
+A faire : MainBoard
+avec :
+- commande pont
+- commande lampes
+- sortie ws2812
+- commande sabertooth ou autre (?)
+- mesure batterie
+- rajouter pullup(ou down) sur SHIFT_IN
 
