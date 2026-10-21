@@ -9,7 +9,7 @@ MEMORY
     APP(rx)         : ORIGIN = ORIGIN(EEPROM) + LENGTH(EEPROM), LENGTH = __flash_size__ - (ORIGIN(APP) - 0x10000000) - __settings_length__
     SETTINGS(r)     : ORIGIN = 0x10000000 + __flash_size__ - __settings_length__, LENGTH = __settings_length__
 
-    RAM(rwx)        : ORIGIN = 0x20000000, LENGTH = 512k
+    RAM(rwx)        : ORIGIN = 0x20000000, LENGTH = 256k
     SCRATCH_X(rwx)  : ORIGIN = 0x20040000, LENGTH = 4k
     SCRATCH_Y(rwx)  : ORIGIN = 0x20041000, LENGTH = 4k
 }
