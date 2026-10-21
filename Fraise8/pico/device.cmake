@@ -46,6 +46,14 @@ message("ld_scripts_path: ${ld_scripts_path}")
 
 
 if(${is_pied_fruit} EQUAL 1)
+	set(target_boot_file usb_bootloader.uf2)
+	set(target_hex_file ${projName}-0.hex)
+else()
+	set(target_boot_file fraise_bootloader.uf2)
+	set(target_hex_file ${projName}.hex)
+endif()
+
+if(${is_pied_fruit} EQUAL 1)
     pico_set_linker_script(${projName} "${ld_scripts_path}/master_app.ld")
     target_link_libraries(${projName} fraise fraise_master)
     pico_enable_stdio_usb(${projName} 1)
@@ -53,7 +61,7 @@ if(${is_pied_fruit} EQUAL 1)
     set(APP_BIN ${CMAKE_CURRENT_BINARY_DIR}/${projName}.bin)
     set(BLD_ELF ${CMAKE_CURRENT_BINARY_DIR}/bootloader/bootloader.elf)
     pico_set_linker_script(bootloader ${ld_scripts_path}/master_bootloader.ld)
-    add_custom_target(usb_bootloader ALL
+    add_custom_target(pack_bootloader_and_app ALL
         DEPENDS ${projName} bootloader
         COMMAND ${CMAKE_OBJCOPY} --update-section .app_bin=${APP_BIN} ${BLD_ELF} usb_bootloader.elf
         COMMAND picotool uf2 convert usb_bootloader.elf usb_bootloader.uf2
@@ -65,17 +73,11 @@ else()
     set(APP_BIN ${CMAKE_CURRENT_BINARY_DIR}/${projName}.bin)
     set(BLD_ELF ${CMAKE_CURRENT_BINARY_DIR}/bootloader/bootloader.elf)
     pico_set_linker_script(bootloader ${ld_scripts_path}/device_bootloader.ld)
-    add_custom_target(fraise_bootloader ALL
+    add_custom_target(pack_bootloader_and_app ALL
         DEPENDS ${projName} bootloader
         COMMAND ${CMAKE_OBJCOPY} --update-section .app_bin=${APP_BIN} ${BLD_ELF} fraise_bootloader.elf
         COMMAND picotool uf2 convert fraise_bootloader.elf fraise_bootloader.uf2
     )
-endif()
-
-if(${is_pied_fruit} EQUAL 1)
-	set(target_file ${projName}-0.hex)
-else()
-	set(target_file ${projName}.hex)
 endif()
 
 # specify linking script paths for both project and bootloader
@@ -99,11 +101,10 @@ add_custom_command(
 
 if (NOT DEFINED no_hex_copy)
 add_custom_command(
-	TARGET ${projName} POST_BUILD
-	# COMMENT "-- Calculating memory usage"
-	# COMMAND ${size_command} -G ${projName}.elf > size.txt
-	COMMENT "-- Copying hex file to source directory"
-	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/${projName}.hex" "${PROJECT_SOURCE_DIR}/../${target_file}"
+	TARGET pack_bootloader_and_app POST_BUILD
+	COMMENT "-- Copying bootloader and hexfile to source directory"
+	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/${target_boot_file}" "${PROJECT_SOURCE_DIR}/../${projName}_${target_boot_file}"
+	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/${projName}.hex" "${PROJECT_SOURCE_DIR}/../${target_hex_file}"
 )
 endif()
 
