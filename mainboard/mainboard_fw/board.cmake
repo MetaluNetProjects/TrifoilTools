@@ -1,7 +1,7 @@
 set(FRAISE_BOARD pico)
 
-set(PICO_BOARD pico2_w)
-#set(PICO_BOARD pico)
+#set(PICO_BOARD pico2_w)
+set(PICO_BOARD pico)
 
 #set(FRAISE_TX_PIN 4)
 #set(FRAISE_RX_PIN 5)

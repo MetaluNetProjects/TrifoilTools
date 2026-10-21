@@ -1,12 +1,13 @@
 /* Fraise device memory map */
 __settings_length__ = 4k;
+__flash_size__ = 2048k;
 
 MEMORY
 {
     FRAISE_BLD(r)   : ORIGIN = 0x10000000 , LENGTH = 128k
     EEPROM(r)       : ORIGIN = ORIGIN(FRAISE_BLD) + LENGTH(FRAISE_BLD), LENGTH = 4k
-    APP(rx)         : ORIGIN = ORIGIN(EEPROM) + LENGTH(EEPROM), LENGTH = 4096k - (ORIGIN(APP) - 0x10000000) - __settings_length__
-    SETTINGS(r)     : ORIGIN = 0x10000000 + 4096k - __settings_length__, LENGTH = __settings_length__
+    APP(rx)         : ORIGIN = ORIGIN(EEPROM) + LENGTH(EEPROM), LENGTH = __flash_size__ - (ORIGIN(APP) - 0x10000000) - __settings_length__
+    SETTINGS(r)     : ORIGIN = 0x10000000 + __flash_size__ - __settings_length__, LENGTH = __settings_length__
 
     RAM(rwx)        : ORIGIN = 0x20000000, LENGTH = 512k
     SCRATCH_X(rwx)  : ORIGIN = 0x20040000, LENGTH = 4k
